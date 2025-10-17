@@ -2,6 +2,7 @@
 
 import WalletConnect from '@/components/WalletConnect'
 import { useWeb3Auth } from '@web3auth/modal-react-hooks'
+import TestTransaction from '@/components/TestTransaction'
 
 export default function ChatPage() {
   const { isConnected } = useWeb3Auth()
@@ -21,6 +22,7 @@ export default function ChatPage() {
         {isConnected ? (
           <div className="h-full p-4">
             <p>Chat interface will go here</p>
+            <TestTransaction />
           </div>
         ) : (
           <div className="h-full flex items-center justify-center">

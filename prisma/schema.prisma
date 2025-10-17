@@ -1,0 +1,35 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model FundedWallet {
+  id              String   @id @default(cuid())
+  smartAccount    String   @unique // User's smart account address
+  amount          String   // Amount funded (in ETH)
+  txHash          String?  // Transaction hash
+  fundedAt        DateTime @default(now())
+  fundedBy        String   // Your funding wallet address
+  status          String   // 'pending', 'success', 'failed'
+  errorMessage    String?  // If failed, why
+  
+  @@index([smartAccount])
+  @@index([fundedAt])
+}
+
+model FundingWallet {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  initialBalance  String
+  currentBalance  String
+  totalFunded     String   // Total ETH distributed
+  totalUsers      Int      // Count of users funded
+  lastChecked     DateTime @default(now())
+}

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "^6.17.1",
     "@web3auth/base": "^9.7.0",
     "@web3auth/ethereum-provider": "^9.7.0",
     "@web3auth/modal": "^10.4.0",
@@ -16,9 +17,11 @@
     "axios": "^1.12.2",
     "next": "15.5.4",
     "ox": "^0.9.11",
+    "permissionless": "^0.2.57",
+    "prisma": "^6.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "viem": "^2.38.1",
+    "viem": "^2.38.2",
     "wagmi": "^2.18.0",
     "zustand": "^5.0.8"
   },
