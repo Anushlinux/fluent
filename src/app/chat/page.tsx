@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import WalletConnect from '@/components/WalletConnect'
+import { parseIntent, generateResponse, ConversationMessage, UserContext } from '@/lib/gemini'
+import { useSmartAccount } from '@/hooks/useSmartAccount'
 
 interface Message {
   id: string
@@ -15,6 +17,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { smartAccountAddress } = useSmartAccount()
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -29,20 +32,68 @@ export default function ChatPage() {
     }
   }, [input])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!input.trim() || isLoading) return
 
+    const userMessageContent = input.trim()
+    
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim()
+      content: userMessageContent
     }
     
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    setIsLoading(true)
+
+    try {
+      // Convert messages to conversation history format
+      const conversationHistory: ConversationMessage[] = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+
+      // Mock user context (in real app, this would come from blockchain data)
+      const userContext: UserContext = {
+        balance: '500.00',
+        aaveBalance: '0.00',
+        hasDeposited: false,
+        riskTolerance: 'medium',
+      }
+
+      // Parse user intent
+      const intent = await parseIntent(userMessageContent, conversationHistory, userContext)
+      
+      // Generate AI response
+      const aiResponse = await generateResponse(userMessageContent, intent, userContext, conversationHistory)
+      
+      // Add assistant message
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: aiResponse
+      }
+      
+      setMessages(prev => [...prev, assistantMessage])
+      
+    } catch (error) {
+      console.error('Error generating response:', error)
+      
+      // Fallback response
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "I'm having trouble processing your request right now. Please try again in a moment."
+      }
+      
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -73,7 +124,7 @@ export default function ChatPage() {
       {/* Messages Area */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-8">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !isLoading ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-6">
                 <span className="text-4xl">👋</span>
@@ -123,6 +174,25 @@ export default function ChatPage() {
                   </div>
                 </div>
               ))}
+              
+              {/* Typing Indicator */}
+              {isLoading && (
+                <div className="flex gap-3 flex-row">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-600">
+                    <span className="text-white text-sm font-medium">🤖</span>
+                  </div>
+                  <div className="flex-1 max-w-2xl text-left">
+                    <div className="inline-block rounded-2xl px-5 py-3 shadow-sm bg-white border border-gray-200">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -142,7 +212,7 @@ export default function ChatPage() {
                 placeholder="Type your message... (Shift + Enter for new line)"
                 disabled={isLoading}
                 rows={1}
-                className="w-full border border-gray-300 rounded-2xl px-5 py-3 pr-4 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-900 disabled:cursor-not-allowed text-black transition-all text-sm"
+                className="w-full border border-gray-300 rounded-2xl px-5 py-3 pr-4 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-black transition-all text-sm"
                 style={{ minHeight: '44px', maxHeight: '120px' }}
               />
             </div>
