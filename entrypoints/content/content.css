@@ -1,0 +1,31 @@
+/* Highlighted terms */
+.fluent-highlight {
+  text-decoration: underline dotted #667eea;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.fluent-highlight:hover {
+  background-color: rgba(102, 126, 234, 0.1);
+  text-decoration-color: #5568d3;
+}
+
+/* Popover container */
+.fluent-popover-container {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+.fluent-popover-container > * {
+  pointer-events: auto;
+}
+
+/* Ensure popover text is readable */
+.fluent-popover * {
+  box-sizing: border-box;
+}
+

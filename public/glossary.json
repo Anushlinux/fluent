@@ -1,0 +1,323 @@
+[
+  {
+    "term": "Blockchain",
+    "definition": "A decentralized, distributed ledger that records transactions across multiple computers in a way that makes it difficult to alter retroactively.",
+    "usage": "Bitcoin uses blockchain technology to maintain a transparent and secure record of all transactions.",
+    "quiz": {
+      "question": "What is the primary characteristic of a blockchain?",
+      "answers": [
+        "Centralized control",
+        "Decentralized and immutable ledger",
+        "Only for cryptocurrency",
+        "Requires permission to access"
+      ],
+      "correct": 1,
+      "hint": "Think about how data is stored and distributed across the network."
+    }
+  },
+  {
+    "term": "Smart Contract",
+    "definition": "Self-executing contracts with the terms of the agreement directly written into code, automatically enforcing and executing when conditions are met.",
+    "usage": "Ethereum smart contracts enable decentralized applications to run without intermediaries.",
+    "quiz": {
+      "question": "What makes a smart contract 'smart'?",
+      "answers": [
+        "It uses AI",
+        "It self-executes when conditions are met",
+        "It's written by smart people",
+        "It can think for itself"
+      ],
+      "correct": 1,
+      "hint": "Consider the automation aspect and how it removes the need for intermediaries."
+    }
+  },
+  {
+    "term": "DeFi",
+    "definition": "Decentralized Finance - a blockchain-based form of finance that does not rely on central financial intermediaries like banks or brokerages.",
+    "usage": "Users can lend, borrow, and trade through DeFi protocols without traditional banks.",
+    "quiz": {
+      "question": "What does DeFi eliminate from traditional finance?",
+      "answers": [
+        "All regulations",
+        "Central intermediaries like banks",
+        "The need for money",
+        "Transaction fees"
+      ],
+      "correct": 1,
+      "hint": "Think about what 'decentralized' means in this context."
+    }
+  },
+  {
+    "term": "NFT",
+    "definition": "Non-Fungible Token - a unique digital asset that represents ownership of a specific item or piece of content on the blockchain.",
+    "usage": "Artists sell their digital artwork as NFTs, providing proof of authenticity and ownership.",
+    "quiz": {
+      "question": "What makes an NFT 'non-fungible'?",
+      "answers": [
+        "It cannot be bought or sold",
+        "Each one is unique and not interchangeable",
+        "It's made of fungus",
+        "It has no value"
+      ],
+      "correct": 1,
+      "hint": "Compare it to how dollars are fungible (one dollar equals another), but NFTs are not."
+    }
+  },
+  {
+    "term": "Gas Fee",
+    "definition": "The transaction fee paid to miners or validators for processing transactions and executing smart contracts on a blockchain network.",
+    "usage": "During network congestion, gas fees on Ethereum can become very expensive.",
+    "quiz": {
+      "question": "Why do users pay gas fees?",
+      "answers": [
+        "To fuel their cars",
+        "To compensate network validators for processing transactions",
+        "To buy cryptocurrency",
+        "To create tokens"
+      ],
+      "correct": 1,
+      "hint": "Think about the computational work required to process blockchain transactions."
+    }
+  },
+  {
+    "term": "Wallet",
+    "definition": "A digital tool (software or hardware) that stores private keys and allows users to interact with blockchain networks, send and receive digital assets.",
+    "usage": "MetaMask is a popular browser wallet for managing Ethereum and ERC-20 tokens.",
+    "quiz": {
+      "question": "What does a crypto wallet primarily store?",
+      "answers": [
+        "Physical coins",
+        "Private keys to access your crypto",
+        "Pictures of money",
+        "Credit cards"
+      ],
+      "correct": 1,
+      "hint": "It doesn't actually store the crypto itself, but the keys to access it."
+    }
+  },
+  {
+    "term": "Consensus",
+    "definition": "A mechanism by which a distributed network of computers agrees on the current state of the blockchain, ensuring all participants have the same version of the truth.",
+    "usage": "Bitcoin uses Proof of Work consensus, while Ethereum now uses Proof of Stake.",
+    "quiz": {
+      "question": "What is the purpose of a consensus mechanism?",
+      "answers": [
+        "To make everyone agree politically",
+        "To ensure all nodes agree on the blockchain's state",
+        "To elect leaders",
+        "To vote on new features"
+      ],
+      "correct": 1,
+      "hint": "Consider how a decentralized network maintains a single source of truth."
+    }
+  },
+  {
+    "term": "Mining",
+    "definition": "The process of validating transactions and adding new blocks to a Proof of Work blockchain by solving complex mathematical puzzles, rewarded with cryptocurrency.",
+    "usage": "Bitcoin miners use specialized hardware to compete in solving cryptographic puzzles.",
+    "quiz": {
+      "question": "What do miners receive as a reward?",
+      "answers": [
+        "Physical gold",
+        "Cryptocurrency and transaction fees",
+        "Mining equipment",
+        "Government bonds"
+      ],
+      "correct": 1,
+      "hint": "Think about the incentive structure for securing the network."
+    }
+  },
+  {
+    "term": "Staking",
+    "definition": "The process of locking up cryptocurrency to support a Proof of Stake network's operations and security, earning rewards in return.",
+    "usage": "Ethereum validators stake 32 ETH to participate in block validation and earn staking rewards.",
+    "quiz": {
+      "question": "What is required to become a validator through staking?",
+      "answers": [
+        "Mining hardware",
+        "Locking up a certain amount of cryptocurrency",
+        "A government license",
+        "Physical presence"
+      ],
+      "correct": 1,
+      "hint": "Think about the capital commitment needed to align incentives."
+    }
+  },
+  {
+    "term": "dApp",
+    "definition": "Decentralized Application - an application that runs on a blockchain network rather than centralized servers, typically using smart contracts.",
+    "usage": "Uniswap is a popular dApp that allows users to swap tokens without a centralized exchange.",
+    "quiz": {
+      "question": "Where does a dApp primarily run?",
+      "answers": [
+        "On company servers",
+        "On a blockchain network",
+        "On your phone only",
+        "In the cloud"
+      ],
+      "correct": 1,
+      "hint": "The 'd' stands for decentralized."
+    }
+  },
+  {
+    "term": "Token",
+    "definition": "A digital asset created on an existing blockchain that can represent various forms of value, utility, or ownership rights.",
+    "usage": "The UNI token gives holders governance rights in the Uniswap protocol.",
+    "quiz": {
+      "question": "How do tokens differ from coins?",
+      "answers": [
+        "Tokens are physical",
+        "Tokens are built on existing blockchains",
+        "Tokens are always free",
+        "There is no difference"
+      ],
+      "correct": 1,
+      "hint": "Think about whether they have their own blockchain or use someone else's."
+    }
+  },
+  {
+    "term": "DAO",
+    "definition": "Decentralized Autonomous Organization - an organization governed by smart contracts and token holders, without centralized leadership.",
+    "usage": "MakerDAO allows token holders to vote on important protocol decisions.",
+    "quiz": {
+      "question": "Who controls a DAO?",
+      "answers": [
+        "A CEO",
+        "Token holders through voting",
+        "The government",
+        "Banks"
+      ],
+      "correct": 1,
+      "hint": "Consider the meaning of 'decentralized' and 'autonomous'."
+    }
+  },
+  {
+    "term": "Layer 2",
+    "definition": "A secondary protocol built on top of a main blockchain (Layer 1) to improve scalability and reduce transaction costs while leveraging the security of the main chain.",
+    "usage": "Arbitrum and Optimism are Layer 2 solutions that make Ethereum transactions faster and cheaper.",
+    "quiz": {
+      "question": "What is the main benefit of Layer 2 solutions?",
+      "answers": [
+        "They replace Layer 1",
+        "They improve scalability and reduce costs",
+        "They eliminate security",
+        "They remove decentralization"
+      ],
+      "correct": 1,
+      "hint": "Think about the problems they're designed to solve."
+    }
+  },
+  {
+    "term": "Oracle",
+    "definition": "A service that provides external real-world data to smart contracts on the blockchain, acting as a bridge between on-chain and off-chain information.",
+    "usage": "Chainlink oracles feed price data to DeFi protocols for accurate asset valuations.",
+    "quiz": {
+      "question": "Why are oracles necessary?",
+      "answers": [
+        "To predict the future",
+        "To bring external data onto the blockchain",
+        "To mine cryptocurrency",
+        "To store data"
+      ],
+      "correct": 1,
+      "hint": "Blockchains can't directly access external information."
+    }
+  },
+  {
+    "term": "Solidity",
+    "definition": "A high-level programming language designed for writing smart contracts that run on the Ethereum Virtual Machine (EVM).",
+    "usage": "Developers use Solidity to create decentralized applications on Ethereum.",
+    "quiz": {
+      "question": "What is Solidity primarily used for?",
+      "answers": [
+        "Web design",
+        "Writing smart contracts for Ethereum",
+        "Database management",
+        "Mobile apps"
+      ],
+      "correct": 1,
+      "hint": "It's specifically designed for blockchain development."
+    }
+  },
+  {
+    "term": "Web3",
+    "definition": "The vision of a decentralized internet built on blockchain technology, where users own their data and digital assets rather than relying on centralized platforms.",
+    "usage": "Web3 applications give users control over their identity and data through blockchain technology.",
+    "quiz": {
+      "question": "What distinguishes Web3 from Web2?",
+      "answers": [
+        "Better graphics",
+        "Decentralization and user ownership",
+        "Faster speeds",
+        "More advertisements"
+      ],
+      "correct": 1,
+      "hint": "Focus on who owns and controls the data and platforms."
+    }
+  },
+  {
+    "term": "MetaMask",
+    "definition": "A popular browser extension and mobile wallet that allows users to interact with Ethereum blockchain and Web3 applications.",
+    "usage": "Users connect their MetaMask wallet to dApps to sign transactions and manage tokens.",
+    "quiz": {
+      "question": "What type of tool is MetaMask?",
+      "answers": [
+        "A mining software",
+        "A crypto wallet and Web3 gateway",
+        "A trading bot",
+        "A blockchain explorer"
+      ],
+      "correct": 1,
+      "hint": "It helps you interact with decentralized applications."
+    }
+  },
+  {
+    "term": "ERC-20",
+    "definition": "A technical standard for fungible tokens on the Ethereum blockchain, defining a common set of rules for how tokens should behave.",
+    "usage": "Most tokens on Ethereum, like USDC and DAI, follow the ERC-20 standard.",
+    "quiz": {
+      "question": "What does the ERC-20 standard define?",
+      "answers": [
+        "Mining algorithms",
+        "Rules for fungible tokens on Ethereum",
+        "Gas prices",
+        "NFT specifications"
+      ],
+      "correct": 1,
+      "hint": "It's about standardizing how tokens work on Ethereum."
+    }
+  },
+  {
+    "term": "Yield Farming",
+    "definition": "The practice of staking or lending crypto assets in DeFi protocols to earn rewards, often in the form of additional tokens or interest.",
+    "usage": "Liquidity providers engage in yield farming by depositing assets into DeFi pools to earn trading fees and token rewards.",
+    "quiz": {
+      "question": "What is the goal of yield farming?",
+      "answers": [
+        "Growing vegetables",
+        "Earning returns on crypto assets",
+        "Mining Bitcoin",
+        "Buying NFTs"
+      ],
+      "correct": 1,
+      "hint": "Think about generating passive income from your crypto holdings."
+    }
+  },
+  {
+    "term": "Liquidity Pool",
+    "definition": "A collection of cryptocurrency funds locked in a smart contract, used to facilitate decentralized trading by providing liquidity for token swaps.",
+    "usage": "Uniswap liquidity pools allow traders to swap tokens instantly without traditional order books.",
+    "quiz": {
+      "question": "What is the main purpose of a liquidity pool?",
+      "answers": [
+        "To store water",
+        "To enable decentralized trading",
+        "To mine cryptocurrency",
+        "To hold NFTs"
+      ],
+      "correct": 1,
+      "hint": "Consider how decentralized exchanges facilitate trades without buyers and sellers meeting directly."
+    }
+  }
+]
+
