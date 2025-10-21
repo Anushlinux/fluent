@@ -25,8 +25,8 @@
 .fluent-capture-popover {
   position: fixed;
   z-index: 2147483647;
-  max-width: 320px;
-  min-width: 280px;
+  max-width: 380px;
+  min-width: 320px;
   padding: 12px 16px 16px;
   background: white;
   border-radius: 12px;
@@ -119,6 +119,88 @@
 
 .fluent-capture-popover--captured .fluent-capture-popover__button {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+/* Tags Section */
+.fluent-capture-popover__tags {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.fluent-capture-popover__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fluent-capture-popover__field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6b7280;
+}
+
+.fluent-capture-popover__input {
+  padding: 6px 10px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1f2937;
+  background: #f9fafb;
+  transition: all 0.2s ease;
+}
+
+.fluent-capture-popover__input:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Term Chips */
+.fluent-capture-popover__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fluent-capture-popover__chip {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Confidence Indicator */
+.fluent-capture-popover__confidence {
+  position: relative;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fluent-capture-popover__confidence-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.fluent-capture-popover__confidence-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-top: 4px;
+  display: block;
 }
 
 /* Optional: Add arrow pointer (removed for now to avoid positioning issues) */

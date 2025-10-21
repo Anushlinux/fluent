@@ -3,6 +3,7 @@ import nlp from 'compromise';
 export interface ContextResult {
   terms: string[];
   context: string;
+  framework?: string;          // Blockchain framework (EVM, Solana, Cosmos, etc.)
   secondaryContext?: string;
   confidence: number;
 }
@@ -38,6 +39,20 @@ export function tagSentence(sentence: string, glossary: string[]): ContextResult
     'Security': ['audit', 'vulnerability', 'exploit', 'hack', 'security', 'oracle', 'attack', 'reentrancy', 'overflow', 'private key'],
   };
 
+  // Define blockchain framework keywords
+  const frameworkKeywords: { [key: string]: string[] } = {
+    'EVM': ['ethereum', 'evm', 'ethereum virtual machine', 'evm-compatible', 'solidity', 'vyper', 'web3.js', 'ethers.js'],
+    'Solana': ['solana', 'spl', 'solana program library', 'rust solana', 'anchor framework', 'phantom wallet'],
+    'Cosmos': ['cosmos', 'cosmos sdk', 'tendermint', 'ibc', 'inter-blockchain communication', 'atom'],
+    'Bitcoin': ['bitcoin', 'btc', 'lightning network', 'taproot', 'segwit', 'utxo'],
+    'Polkadot': ['polkadot', 'substrate', 'parachain', 'relay chain', 'dot', 'kusama'],
+    'Cardano': ['cardano', 'ada', 'plutus', 'haskell cardano', 'ouroboros'],
+    'Avalanche': ['avalanche', 'avax', 'subnet', 'avalanche consensus'],
+    'Near': ['near', 'near protocol', 'aurora', 'nightshade'],
+    'Aptos': ['aptos', 'move language', 'aptos blockchain'],
+    'Sui': ['sui', 'sui blockchain', 'move sui'],
+  };
+
   // Calculate context scores based on keyword matches
   const contextScores: { [key: string]: number } = {};
   const sentenceLower = sentence.toLowerCase();
@@ -63,6 +78,27 @@ export function tagSentence(sentence: string, glossary: string[]): ContextResult
   const context = sortedContexts.length > 0 ? sortedContexts[0][0] : 'General';
   const secondaryContext = sortedContexts.length > 1 ? sortedContexts[1][0] : undefined;
   
+  // Calculate framework scores based on keyword matches
+  const frameworkScores: { [key: string]: number } = {};
+  
+  for (const [label, keywords] of Object.entries(frameworkKeywords)) {
+    let score = 0;
+    keywords.forEach(keyword => {
+      if (sentenceLower.includes(keyword)) {
+        // More specific keywords (longer) get higher weight
+        score += keyword.split(' ').length;
+      }
+    });
+    if (score > 0) {
+      frameworkScores[label] = score;
+    }
+  }
+
+  // Sort frameworks by score and pick the top one
+  const sortedFrameworks = Object.entries(frameworkScores)
+    .sort(([, a], [, b]) => b - a);
+  const framework = sortedFrameworks.length > 0 ? sortedFrameworks[0][0] : undefined;
+  
   // Calculate confidence (0-100)
   const maxPossibleScore = 10; // Approximate max for normalization
   const confidence = sortedContexts.length > 0 
@@ -72,6 +108,7 @@ export function tagSentence(sentence: string, glossary: string[]): ContextResult
   return { 
     terms, 
     context,
+    framework,
     secondaryContext,
     confidence
   };
@@ -85,4 +122,35 @@ export function detectPageContext(pageText: string): ContextResult {
   const sample = pageText.slice(0, 2000).toLowerCase();
   
   return tagSentence(sample, []);
+}
+
+/**
+ * AI Enrichment Hook - Placeholder for future Grok/Claude API integration
+ * @param result - The rule-based tagging result to be enriched
+ * @param sentence - The original sentence for context
+ * @returns Enhanced ContextResult with AI-powered insights
+ */
+export async function enrichWithAI(result: ContextResult, sentence: string): Promise<ContextResult> {
+  // TODO: Phase 3 - Integrate Grok/Claude API
+  // Example implementation:
+  // const apiResponse = await fetch('https://api.x.ai/v1/chat/completions', {
+  //   method: 'POST',
+  //   headers: {
+  //     'Content-Type': 'application/json',
+  //     'Authorization': 'Bearer YOUR_API_KEY'
+  //   },
+  //   body: JSON.stringify({
+  //     model: 'grok-4',
+  //     messages: [{
+  //       role: 'user',
+  //       content: `Classify this Web3 sentence's context and framework: "${sentence}"`
+  //     }]
+  //   })
+  // });
+  // const aiData = await apiResponse.json();
+  // return { ...result, ...aiData.enhancements };
+  
+  // For now, just return the rule-based result unchanged
+  console.log('[Fluent] AI enrichment called (stub) for:', sentence.slice(0, 50) + '...');
+  return result;
 }

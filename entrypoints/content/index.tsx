@@ -32,13 +32,19 @@ let hoverTimeout: number | null = null;
 let currentSentenceHighlight: HTMLElement | null = null;
 let capturePopoverElement: HTMLElement | null = null;
 let lastSelectedSentence: string | null = null;
-let latestCapturedSentenceEntry: {
+
+interface CapturedSentence {
   id: string;
   sentence: string;
   terms: string[];
   context: string;
+  framework?: string;
+  secondaryContext?: string;
+  confidence: number;
   timestamp: string;
-} | null = null;
+}
+
+let latestCapturedSentenceEntry: CapturedSentence | null = null;
 let analysisActive: boolean = false;
 let analyzing: boolean = false;
 let pageContext: string = 'General';
@@ -489,7 +495,9 @@ function showPopover(
   const captureCandidate = lastSelectedSentence || contextSentence || '';
   const handleCaptureSentence = captureCandidate
     ? async () => {
-        await storeCapturedSentence(captureCandidate);
+        const glossaryTerms = glossary.map(e => e.term);
+        const tagResult = tagSentence(captureCandidate, glossaryTerms);
+        await storeCapturedSentence(captureCandidate, tagResult);
       }
     : undefined;
   
@@ -627,8 +635,14 @@ function handleSelectionInteraction(): void {
     }
 
     console.log('[Fluent] Successfully extracted sentence:', sentence.slice(0, 100));
+    
+    // Tag the sentence with terms and context
+    const glossaryTerms = glossary.map(entry => entry.term);
+    const tagResult = tagSentence(sentence, glossaryTerms);
+    console.log('[Fluent] Tagged sentence:', tagResult);
+    
     highlightSentenceRange(range);
-    showCapturePopover(range, root, sentence);
+    showCapturePopover(range, root, sentence, tagResult);
     lastSelectedSentence = sentence;
   }, 0);
 }
@@ -873,46 +887,13 @@ function highlightSentenceRange(range: Range): void {
   }
 }
 
-function showCapturePopover(range: Range, _root: HTMLElement, sentence: string): void {
+function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): void {
   removeCapturePopover();
 
   console.log('[Fluent] Showing capture popover for sentence:', sentence.slice(0, 50) + '...');
 
   const popover = document.createElement('div');
   popover.className = 'fluent-capture-popover';
-
-  const sentencePreview = document.createElement('div');
-  sentencePreview.className = 'fluent-capture-popover__text';
-  sentencePreview.textContent = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
-
-  const actions = document.createElement('div');
-  actions.className = 'fluent-capture-popover__actions';
-
-  const captureButton = document.createElement('button');
-  captureButton.type = 'button';
-  captureButton.className = 'fluent-capture-popover__button';
-  captureButton.textContent = 'Capture Sentence';
-
-  if (!hasExtensionContext()) {
-    captureButton.disabled = true;
-    captureButton.textContent = 'Extension Reloaded - Refresh Page';
-    captureButton.style.background = '#ef4444';
-  }
-
-  captureButton.addEventListener('click', async () => {
-    if (!hasExtensionContext()) {
-      console.warn('[Fluent] Cannot capture sentence - extension context invalidated. Please refresh the page.');
-      return;
-    }
-
-    await storeCapturedSentence(sentence);
-    popover.classList.add('fluent-capture-popover--captured');
-    captureButton.disabled = true;
-    captureButton.textContent = 'Captured';
-    setTimeout(() => {
-      clearSentenceCaptureArtifacts();
-    }, 300);
-  });
 
   const closeButton = document.createElement('button');
   closeButton.type = 'button';
@@ -923,9 +904,147 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string):
     clearSentenceCaptureArtifacts();
   });
 
-  actions.appendChild(captureButton);
+  const sentencePreview = document.createElement('div');
+  sentencePreview.className = 'fluent-capture-popover__text';
+  sentencePreview.textContent = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
+
+  // Tags section
+  const tagsSection = document.createElement('div');
+  tagsSection.className = 'fluent-capture-popover__tags';
+  
+  // Terms display (as chips)
+  if (tagResult.terms.length > 0) {
+    const termsContainer = document.createElement('div');
+    termsContainer.className = 'fluent-capture-popover__field';
+    const termsLabel = document.createElement('label');
+    termsLabel.textContent = 'Terms:';
+    termsContainer.appendChild(termsLabel);
+    
+    const termsChips = document.createElement('div');
+    termsChips.className = 'fluent-capture-popover__chips';
+    tagResult.terms.forEach(term => {
+      const chip = document.createElement('span');
+      chip.className = 'fluent-capture-popover__chip';
+      chip.textContent = term;
+      termsChips.appendChild(chip);
+    });
+    termsContainer.appendChild(termsChips);
+    tagsSection.appendChild(termsContainer);
+  }
+
+  // Context field (editable)
+  const contextField = document.createElement('div');
+  contextField.className = 'fluent-capture-popover__field';
+  const contextLabel = document.createElement('label');
+  contextLabel.textContent = 'Context:';
+  contextField.appendChild(contextLabel);
+  const contextInput = document.createElement('input');
+  contextInput.type = 'text';
+  contextInput.value = tagResult.context;
+  contextInput.className = 'fluent-capture-popover__input';
+  contextField.appendChild(contextInput);
+  tagsSection.appendChild(contextField);
+
+  // Framework field (editable)
+  if (tagResult.framework) {
+    const frameworkField = document.createElement('div');
+    frameworkField.className = 'fluent-capture-popover__field';
+    const frameworkLabel = document.createElement('label');
+    frameworkLabel.textContent = 'Framework:';
+    frameworkField.appendChild(frameworkLabel);
+    const frameworkInput = document.createElement('input');
+    frameworkInput.type = 'text';
+    frameworkInput.value = tagResult.framework;
+    frameworkInput.className = 'fluent-capture-popover__input';
+    frameworkField.appendChild(frameworkInput);
+    tagsSection.appendChild(frameworkField);
+  }
+
+  // Secondary Context field (editable)
+  if (tagResult.secondaryContext) {
+    const secondaryField = document.createElement('div');
+    secondaryField.className = 'fluent-capture-popover__field';
+    const secondaryLabel = document.createElement('label');
+    secondaryLabel.textContent = 'Secondary:';
+    secondaryField.appendChild(secondaryLabel);
+    const secondaryInput = document.createElement('input');
+    secondaryInput.type = 'text';
+    secondaryInput.value = tagResult.secondaryContext;
+    secondaryInput.className = 'fluent-capture-popover__input';
+    secondaryField.appendChild(secondaryInput);
+    tagsSection.appendChild(secondaryField);
+  }
+
+  // Confidence indicator
+  const confidenceField = document.createElement('div');
+  confidenceField.className = 'fluent-capture-popover__field';
+  const confidenceLabel = document.createElement('label');
+  confidenceLabel.textContent = 'Confidence:';
+  confidenceField.appendChild(confidenceLabel);
+  const confidenceBar = document.createElement('div');
+  confidenceBar.className = 'fluent-capture-popover__confidence';
+  const confidenceFill = document.createElement('div');
+  confidenceFill.className = 'fluent-capture-popover__confidence-fill';
+  confidenceFill.style.width = `${tagResult.confidence}%`;
+  // Color code: red < 40, yellow 40-70, green > 70
+  if (tagResult.confidence < 40) {
+    confidenceFill.style.background = '#ef4444';
+  } else if (tagResult.confidence < 70) {
+    confidenceFill.style.background = '#f59e0b';
+  } else {
+    confidenceFill.style.background = '#10b981';
+  }
+  const confidenceText = document.createElement('span');
+  confidenceText.className = 'fluent-capture-popover__confidence-text';
+  confidenceText.textContent = `${tagResult.confidence}%`;
+  confidenceBar.appendChild(confidenceFill);
+  confidenceField.appendChild(confidenceBar);
+  confidenceField.appendChild(confidenceText);
+  tagsSection.appendChild(confidenceField);
+
+  // Actions section
+  const actions = document.createElement('div');
+  actions.className = 'fluent-capture-popover__actions';
+
+  const confirmButton = document.createElement('button');
+  confirmButton.type = 'button';
+  confirmButton.className = 'fluent-capture-popover__button';
+  confirmButton.textContent = 'Confirm & Save';
+
+  if (!hasExtensionContext()) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Extension Reloaded - Refresh Page';
+    confirmButton.style.background = '#ef4444';
+  }
+
+  confirmButton.addEventListener('click', async () => {
+    if (!hasExtensionContext()) {
+      console.warn('[Fluent] Cannot capture sentence - extension context invalidated. Please refresh the page.');
+      return;
+    }
+
+    // Get edited values
+    const editedTagResult = {
+      terms: tagResult.terms,
+      context: contextInput.value,
+      framework: tagResult.framework,
+      secondaryContext: tagResult.secondaryContext,
+      confidence: tagResult.confidence
+    };
+
+    await storeCapturedSentence(sentence, editedTagResult);
+    popover.classList.add('fluent-capture-popover--captured');
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Saved ✓';
+    setTimeout(() => {
+      clearSentenceCaptureArtifacts();
+    }, 800);
+  });
+
+  actions.appendChild(confirmButton);
   popover.appendChild(closeButton);
   popover.appendChild(sentencePreview);
+  popover.appendChild(tagsSection);
   popover.appendChild(actions);
 
   document.body.appendChild(popover);
@@ -995,37 +1114,45 @@ function positionCapturePopover(range?: Range): void {
     capturePopoverElement.style.top = `${Math.max(top, window.scrollY + viewportPadding)}px`;
     capturePopoverElement.style.left = `${left}px`;
 
-    console.log('[Fluent] Positioned popover at', { top, left, rect, popoverWidth, popoverHeight });
+    // console.log('[Fluent] Positioned popover at', { top, left, rect, popoverWidth, popoverHeight });
   } catch (error) {
     console.error('[Fluent] Error positioning popover:', error);
   }
 }
 
-async function storeCapturedSentence(sentence: string): Promise<void> {
+async function storeCapturedSentence(sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): Promise<void> {
   try {
     if (!hasExtensionContext()) {
       console.warn('[Fluent] Extension context invalidated - cannot store sentence. Please refresh the page.');
       return;
     }
 
-    const glossaryTerms = glossary.map(entry => entry.term);
-    const { terms, context } = tagSentence(sentence, glossaryTerms);
-
-    const existingLog = await storageGet<typeof latestCapturedSentenceEntry[]>('fluentSentenceLog');
+    const existingLog = await storageGet<CapturedSentence[]>('fluentSentenceLog');
     const log = Array.isArray(existingLog) ? [...existingLog] : [];
 
-    const entry = {
+    const entry: CapturedSentence = {
       id: uuidv4(),
       sentence,
-      terms,
-      context,
+      terms: tagResult.terms,
+      context: tagResult.context,
+      framework: tagResult.framework,
+      secondaryContext: tagResult.secondaryContext,
+      confidence: tagResult.confidence,
       timestamp: new Date().toISOString(),
     };
 
     log.push(entry);
     await storageSet({ fluentSentenceLog: log });
 
-    console.log('[Fluent] Tagged and captured sentence:', entry);
+    console.log('[Fluent] Captured Sentence with Tags:', {
+      sentence: sentence.slice(0, 100) + (sentence.length > 100 ? '...' : ''),
+      terms: tagResult.terms,
+      context: tagResult.context,
+      framework: tagResult.framework,
+      secondaryContext: tagResult.secondaryContext,
+      confidence: tagResult.confidence
+    });
+    
     latestCapturedSentenceEntry = entry;
   } catch (error) {
     if (error instanceof Error && error.message.includes('Extension context invalidated')) {
