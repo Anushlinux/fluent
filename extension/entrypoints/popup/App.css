@@ -324,6 +324,7 @@
 /* Export Buttons */
 .export-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 

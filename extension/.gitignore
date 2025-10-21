@@ -1,0 +1,13 @@
+node_modules
+.output
+.wxt
+dist
+*.log
+.DS_Store
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Keep these files for testing
+!test.html
+

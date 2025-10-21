@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { calculateStats, exportAsJSON, exportAsMarkdown, type UserStats } from '../../utils/stats';
 import { getLogs, type LogEntry } from '../../utils/logger';
 import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
+import { exportGraphData, downloadGraphData } from '../../utils/graphExport';
 import PokedexView from './PokedexView';
 import './App.css';
 
@@ -107,6 +108,15 @@ export default function App() {
   const handleExportMarkdown = () => {
     const markdown = exportAsMarkdown(logs);
     downloadFile(markdown, 'fluent-logs.md', 'text/markdown');
+  };
+
+  const handleExportGraph = async () => {
+    try {
+      const graphData = await exportGraphData();
+      downloadGraphData(graphData);
+    } catch (error) {
+      console.error('[Fluent] Failed to export graph data:', error);
+    }
   };
 
   const downloadFile = (content: string, filename: string, type: string) => {
@@ -288,6 +298,9 @@ export default function App() {
             </button>
             <button className="button button--secondary" onClick={handleExportMarkdown}>
               📝 Export as Markdown
+            </button>
+            <button className="button button--secondary" onClick={handleExportGraph}>
+              🕸️ Export for Graph
             </button>
           </div>
         </div>

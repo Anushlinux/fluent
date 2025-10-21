@@ -1,0 +1,104 @@
+{
+  "nodes": [
+    {
+      "id": "topic-erc-4337",
+      "type": "topic",
+      "label": "ERC-4337",
+      "timestamp": "2025-01-20T10:00:00.000Z",
+      "metadata": {
+        "confidence": 100
+      }
+    },
+    {
+      "id": "topic-defi",
+      "type": "topic",
+      "label": "DeFi",
+      "timestamp": "2025-01-20T10:00:00.000Z",
+      "metadata": {
+        "confidence": 100
+      }
+    },
+    {
+      "id": "sample-1",
+      "type": "sentence",
+      "label": "Account abstraction allows smart contract wallets to initiate transactions without requiring an EOA.",
+      "terms": ["Account Abstraction", "Smart Contract", "Wallet"],
+      "context": "ERC-4337",
+      "framework": "Ethereum",
+      "timestamp": "2025-01-20T10:30:00.000Z",
+      "metadata": {
+        "confidence": 85,
+        "quizCompleted": false
+      }
+    },
+    {
+      "id": "sample-2",
+      "type": "sentence",
+      "label": "The relayer bundles multiple user operations and submits them through the EntryPoint contract.",
+      "terms": ["Relayer", "Smart Contract"],
+      "context": "ERC-4337",
+      "framework": "Ethereum",
+      "timestamp": "2025-01-20T11:00:00.000Z",
+      "metadata": {
+        "confidence": 90,
+        "quizCompleted": false
+      }
+    },
+    {
+      "id": "sample-3",
+      "type": "sentence",
+      "label": "Uniswap uses smart contracts to enable automated token swaps through liquidity pools.",
+      "terms": ["Smart Contract", "Liquidity Pool", "DeFi"],
+      "context": "DeFi",
+      "framework": "Ethereum",
+      "timestamp": "2025-01-21T09:00:00.000Z",
+      "metadata": {
+        "confidence": 95,
+        "quizCompleted": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-topic-erc-4337-sample-1",
+      "source": "topic-erc-4337",
+      "target": "sample-1",
+      "weight": 1,
+      "type": "context-match"
+    },
+    {
+      "id": "edge-topic-erc-4337-sample-2",
+      "source": "topic-erc-4337",
+      "target": "sample-2",
+      "weight": 1,
+      "type": "context-match"
+    },
+    {
+      "id": "edge-topic-defi-sample-3",
+      "source": "topic-defi",
+      "target": "sample-3",
+      "weight": 1,
+      "type": "context-match"
+    },
+    {
+      "id": "edge-sample-1-sample-2",
+      "source": "sample-1",
+      "target": "sample-2",
+      "weight": 0.6,
+      "type": "both"
+    },
+    {
+      "id": "edge-sample-1-sample-3",
+      "source": "sample-1",
+      "target": "sample-3",
+      "weight": 0.4,
+      "type": "term-match"
+    }
+  ],
+  "stats": {
+    "totalSentences": 3,
+    "topicCount": 2,
+    "avgLinkStrength": 0.82
+  }
+}
+
