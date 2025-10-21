@@ -14,9 +14,11 @@
     "prepare": "wxt prepare"
   },
   "dependencies": {
+    "compromise": "^14.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "compromise": "^14.14.0"
+    "uuid": "^13.0.0",
+    "webextension-polyfill": "^0.10.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
@@ -27,4 +29,3 @@
     "wxt": "^0.18.0"
   }
 }
-

@@ -9,9 +9,11 @@ export interface Quiz {
 }
 
 export interface CapturedSentence {
+  id: string;
   sentence: string;
-  capturedAt: string;
-  url: string;
+  terms: string[];
+  context: string;
+  timestamp: string;
 }
 
 export interface PopoverProps {

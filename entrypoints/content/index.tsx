@@ -1,9 +1,12 @@
 import ReactDOM from 'react-dom/client';
 import nlp from 'compromise';
+import { v4 as uuidv4 } from 'uuid';
 import { defineContentScript } from 'wxt/sandbox';
 import { Popover, type Quiz } from '../../components/Popover';
 import { logPopoverView, logQuizResult } from '../../utils/logger';
+import { tagSentence } from '../../utils/tagger';
 import './content.css';
+import browser from 'webextension-polyfill';
 
 interface GlossaryEntry {
   term: string;
@@ -25,13 +28,77 @@ let currentSentenceHighlight: HTMLElement | null = null;
 let capturePopoverElement: HTMLElement | null = null;
 let lastSelectedSentence: string | null = null;
 let latestCapturedSentenceEntry: {
+  id: string;
   sentence: string;
-  url: string;
-  capturedAt: string;
+  terms: string[];
+  context: string;
+  timestamp: string;
 } | null = null;
 
 const SENTENCE_BOUNDARY_REGEX = /[.!?]/;
 const SENTENCE_CHAR_LIMIT = 100;
+
+const getExtensionStorage = (): typeof chrome.storage | undefined => {
+  // Prefer the typed chrome storage API when available
+  if (chrome?.storage?.local) {
+    return chrome.storage;
+  }
+
+  // Fallback to the browser polyfill (needs casting to satisfy TS)
+  const browserStorage = (browser as typeof chrome | undefined)?.storage;
+  if (browserStorage?.local) {
+    return browserStorage as unknown as typeof chrome.storage;
+  }
+
+  return undefined;
+};
+
+const storageGet = async <T = unknown>(key: string): Promise<T | undefined> => {
+  const storage = getExtensionStorage();
+  if (!storage?.local) {
+    return undefined;
+  }
+
+  return new Promise<T | undefined>((resolve, reject) => {
+    try {
+      storage.local.get(key, (result) => {
+        if (chrome.runtime?.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(result?.[key] as T | undefined);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+const storageSet = async (value: Record<string, unknown>): Promise<void> => {
+  const storage = getExtensionStorage();
+  if (!storage?.local) {
+    throw new Error('Storage API unavailable');
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    try {
+      storage.local.set(value, () => {
+        if (chrome.runtime?.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve();
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+const hasExtensionContext = (): boolean => {
+  const runtime = chrome?.runtime?.id || (browser as typeof chrome | undefined)?.runtime?.id;
+  return Boolean(runtime && getExtensionStorage()?.local);
+};
 
 /**
  * Main content script entry point
@@ -40,11 +107,14 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   async main() {
     console.log('[Fluent] Content script loaded');
-    
-    // Load glossary
+
+    if (!hasExtensionContext()) {
+      console.warn('[Fluent] Extension context is invalid. Content script cannot function properly.');
+      return;
+    }
+
     await loadGlossary();
-    
-    // Wait for page to be ready
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initializeExtension);
     } else {
@@ -376,6 +446,11 @@ function initializeSelectionCapture(): void {
 
 function handleSelectionInteraction(): void {
   setTimeout(() => {
+    if (!hasExtensionContext()) {
+      console.warn('[Fluent] Extension context invalidated - ignoring selection');
+      return;
+    }
+
     const selection = window.getSelection();
     console.log('[Fluent] Selection interaction detected', {
       hasSelection: !!selection,
@@ -674,7 +749,19 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string):
   captureButton.type = 'button';
   captureButton.className = 'fluent-capture-popover__button';
   captureButton.textContent = 'Capture Sentence';
+
+  if (!hasExtensionContext()) {
+    captureButton.disabled = true;
+    captureButton.textContent = 'Extension Reloaded - Refresh Page';
+    captureButton.style.background = '#ef4444';
+  }
+
   captureButton.addEventListener('click', async () => {
+    if (!hasExtensionContext()) {
+      console.warn('[Fluent] Cannot capture sentence - extension context invalidated. Please refresh the page.');
+      return;
+    }
+
     await storeCapturedSentence(sentence);
     popover.classList.add('fluent-capture-popover--captured');
     captureButton.disabled = true;
@@ -773,18 +860,36 @@ function positionCapturePopover(range?: Range): void {
 
 async function storeCapturedSentence(sentence: string): Promise<void> {
   try {
-    const existing = await chrome.storage.local.get('fluentSentenceLog');
-    const log = existing.fluentSentenceLog ?? [];
+    if (!hasExtensionContext()) {
+      console.warn('[Fluent] Extension context invalidated - cannot store sentence. Please refresh the page.');
+      return;
+    }
+
+    const glossaryTerms = glossary.map(entry => entry.term);
+    const { terms, context } = tagSentence(sentence, glossaryTerms);
+
+    const existingLog = await storageGet<typeof latestCapturedSentenceEntry[]>('fluentSentenceLog');
+    const log = Array.isArray(existingLog) ? [...existingLog] : [];
+
     const entry = {
+      id: uuidv4(),
       sentence,
-      url: window.location.href,
-      capturedAt: new Date().toISOString(),
+      terms,
+      context,
+      timestamp: new Date().toISOString(),
     };
+
     log.push(entry);
-    await chrome.storage.local.set({ fluentSentenceLog: log });
-    console.log('[Fluent] Captured sentence:', entry);
+    await storageSet({ fluentSentenceLog: log });
+
+    console.log('[Fluent] Tagged and captured sentence:', entry);
     latestCapturedSentenceEntry = entry;
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Extension context invalidated')) {
+      console.warn('[Fluent] Extension context invalidated - cannot store sentence. Please refresh the page to restore functionality.');
+      return;
+    }
+
     console.error('[Fluent] Failed to store captured sentence:', error);
   }
 }

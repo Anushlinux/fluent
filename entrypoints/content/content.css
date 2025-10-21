@@ -88,6 +88,12 @@
   box-shadow: none;
 }
 
+.fluent-capture-popover__button:disabled[style*="background: #ef4444"] {
+  background: #ef4444 !important;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .fluent-capture-popover__close {
   position: absolute;
   top: 8px;
