@@ -8,6 +8,12 @@ export interface Quiz {
   hint?: string;
 }
 
+export interface CapturedSentence {
+  sentence: string;
+  capturedAt: string;
+  url: string;
+}
+
 export interface PopoverProps {
   term: string;
   definition: string;
@@ -15,6 +21,9 @@ export interface PopoverProps {
   quiz: Quiz;
   position: { x: number; y: number };
   mode: 'preview' | 'full';
+  captureCandidateSentence?: string | null;
+  latestCapturedSentence?: CapturedSentence | null;
+  onCaptureSentence?: () => Promise<void> | void;
   onQuizAnswer?: (correct: boolean) => void;
   onClose?: () => void;
 }
@@ -26,12 +35,17 @@ export const Popover: React.FC<PopoverProps> = ({
   quiz,
   position,
   mode,
+  captureCandidateSentence,
+  latestCapturedSentence,
+  onCaptureSentence,
   onQuizAnswer,
   onClose,
 }) => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const handleAnswerSelect = (index: number) => {
     setSelectedAnswer(index);
@@ -56,6 +70,19 @@ export const Popover: React.FC<PopoverProps> = ({
     }
 
     onQuizAnswer?.(correct);
+  };
+
+  const handleCaptureSentence = async () => {
+    if (!onCaptureSentence || isCapturing) {
+      return;
+    }
+
+    try {
+      setIsCapturing(true);
+      await onCaptureSentence();
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   // Calculate position to ensure popover stays within viewport
@@ -86,6 +113,37 @@ export const Popover: React.FC<PopoverProps> = ({
           <strong>Definition:</strong>
           <p>{definition}</p>
         </div>
+
+        {captureCandidateSentence && (
+          <div className="fluent-popover__capture">
+            <strong>Capture this sentence:</strong>
+            <p className="fluent-popover__capture-text">
+              {captureCandidateSentence.length > 180
+                ? `${captureCandidateSentence.slice(0, 177)}…`
+                : captureCandidateSentence}
+            </p>
+            <button
+              className="fluent-popover__capture-button"
+              onClick={handleCaptureSentence}
+              disabled={isCapturing}
+            >
+              {isCapturing ? 'Capturing…' : 'Capture Sentence'}
+            </button>
+          </div>
+        )}
+
+        {latestCapturedSentence && (
+          <div className="fluent-popover__captured-meta">
+            <strong>Last captured:</strong>
+            <p className="fluent-popover__captured-text">
+              <em>
+                {latestCapturedSentence.sentence.length > 140
+                  ? `${latestCapturedSentence.sentence.slice(0, 137)}…`
+                  : latestCapturedSentence.sentence}
+              </em>
+            </p>
+          </div>
+        )}
 
         {mode === 'full' && (
           <>

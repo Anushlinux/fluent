@@ -75,6 +75,46 @@
   margin-bottom: 16px;
 }
 
+.fluent-popover__capture,
+.fluent-popover__captured-meta {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  margin-bottom: 12px;
+}
+
+.fluent-popover__capture-text,
+.fluent-popover__captured-text {
+  margin: 8px 0 0 0;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.fluent-popover__capture-button {
+  margin-top: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 9999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fluent-popover__capture-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.35);
+}
+
+.fluent-popover__capture-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+  box-shadow: none;
+}
+
 .fluent-popover__definition:last-child,
 .fluent-popover__usage:last-child,
 .fluent-popover__quiz:last-child {

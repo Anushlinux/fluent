@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Sentence Selection Capture</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.8;
+            color: #333;
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background-color: #f9fafb;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .instructions {
+            background-color: #e8f4f8;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        p {
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Selection Capture Test Page</h1>
+    
+    <div class="instructions">
+        <strong>How to Test:</strong>
+        <ol>
+            <li>Make sure the Fluent extension is loaded in Chrome</li>
+            <li>Select ANY text below (click and drag)</li>
+            <li>Look for a BLUE UNDERLINE on the full sentence</li>
+            <li>A "Capture Sentence" popover should appear below</li>
+            <li>Click the button to capture</li>
+            <li>Open Console (F12) to see the logged sentence</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Paragraph 1: Short Sentences</h2>
+        <p>
+            This is a short sentence. Here is another one. Try selecting part of this text.
+            The extension should highlight the entire sentence. Does it work correctly?
+        </p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Paragraph 2: Medium Sentences</h2>
+        <p>
+            The quick brown fox jumps over the lazy dog in the beautiful countryside.
+            Meanwhile, the farmer was working diligently in his field under the warm sun.
+            Birds were singing melodiously in the nearby trees as the day progressed.
+        </p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Paragraph 3: Long Sentences</h2>
+        <p>
+            In the rapidly evolving world of technology, developers are constantly seeking
+            new ways to improve user experience and create more intuitive interfaces that
+            can adapt to the needs of diverse audiences across different platforms and devices.
+            This requires a deep understanding of both technical capabilities and human behavior.
+        </p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Paragraph 4: Multiple Punctuation</h2>
+        <p>
+            What is the purpose of this test? It helps verify sentence detection! Can you
+            believe how important proper punctuation is? Yes, it's crucial for accurate parsing.
+        </p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Paragraph 5: Mixed Content</h2>
+        <p>
+            The study showed significant results (p &lt; 0.05) across all test groups.
+            Dr. Smith et al. published their findings in 2024. The data suggests that
+            early intervention can improve outcomes by approximately 35.7% on average.
+        </p>
+    </div>
+
+    <div class="instructions" style="margin-top: 40px;">
+        <strong>✅ Expected Behavior:</strong>
+        <ul>
+            <li>Select text → Full sentence gets blue underline</li>
+            <li>Popover appears below with "Capture Sentence" button</li>
+            <li>Clicking button logs to console and stores in chrome.storage.local</li>
+            <li>Button shows "Captured" and popover disappears</li>
+        </ul>
+        
+        <strong>🐛 If Not Working:</strong>
+        <ul>
+            <li>Check Console (F12) for errors</li>
+            <li>Verify extension is loaded at chrome://extensions/</li>
+            <li>Make sure you're selecting regular text (not inside input fields)</li>
+            <li>Try refreshing this page</li>
+        </ul>
+    </div>
+
+    <hr style="margin: 40px 0; border: none; border-top: 2px solid #e5e7eb;">
+    
+    <p style="text-align: center; color: #6b7280; font-size: 14px;">
+        <strong>Fluent Selection Capture</strong> - Test Page
+    </p>
+</body>
+</html>
+

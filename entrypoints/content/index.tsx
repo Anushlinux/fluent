@@ -21,6 +21,17 @@ interface TermMatch {
 let glossary: GlossaryEntry[] = [];
 let currentPopover: { root: ReactDOM.Root; container: HTMLElement } | null = null;
 let hoverTimeout: number | null = null;
+let currentSentenceHighlight: HTMLElement | null = null;
+let capturePopoverElement: HTMLElement | null = null;
+let lastSelectedSentence: string | null = null;
+let latestCapturedSentenceEntry: {
+  sentence: string;
+  url: string;
+  capturedAt: string;
+} | null = null;
+
+const SENTENCE_BOUNDARY_REGEX = /[.!?]/;
+const SENTENCE_CHAR_LIMIT = 100;
 
 /**
  * Main content script entry point
@@ -66,6 +77,8 @@ function initializeExtension(): void {
   
   // Highlight each match
   matches.forEach(match => highlightTerm(match));
+
+  initializeSelectionCapture();
 }
 
 /**
@@ -261,6 +274,13 @@ function showPopover(
   
   // Log popover view
   logPopoverView(entry.term, window.location.href, contextSentence);
+
+  const captureCandidate = lastSelectedSentence || contextSentence || '';
+  const handleCaptureSentence = captureCandidate
+    ? async () => {
+        await storeCapturedSentence(captureCandidate);
+      }
+    : undefined;
   
   // Create popover container
   const container = document.createElement('div');
@@ -286,6 +306,9 @@ function showPopover(
       quiz={entry.quiz}
       position={{ x: event.clientX, y: event.clientY }}
       mode={mode}
+      captureCandidateSentence={captureCandidate || null}
+      latestCapturedSentence={latestCapturedSentenceEntry}
+      onCaptureSentence={handleCaptureSentence}
       onQuizAnswer={handleQuizAnswer}
       onClose={mode === 'full' ? handleClose : undefined}
     />
@@ -341,5 +364,460 @@ function getContextSentence(element: HTMLElement): string {
   const sentence = sentences.find(s => s.includes(term));
   
   return sentence?.trim() || text.slice(0, 150);
+}
+
+function initializeSelectionCapture(): void {
+  console.log('[Fluent] Initializing selection capture listeners');
+  document.addEventListener('mouseup', handleSelectionInteraction);
+  document.addEventListener('keyup', handleSelectionInteraction);
+  document.addEventListener('mousedown', handlePointerDown, true);
+  document.addEventListener('scroll', handleScroll, true);
+}
+
+function handleSelectionInteraction(): void {
+  setTimeout(() => {
+    const selection = window.getSelection();
+    console.log('[Fluent] Selection interaction detected', {
+      hasSelection: !!selection,
+      isCollapsed: selection?.isCollapsed,
+      text: selection?.toString().slice(0, 50)
+    });
+
+    if (!selection || selection.isCollapsed) {
+      clearSentenceCaptureArtifacts();
+      return;
+    }
+
+    if (isSelectionInsideExtension(selection)) {
+      console.log('[Fluent] Selection is inside extension, ignoring');
+      return;
+    }
+
+    const extraction = extractSentenceFromSelection(selection);
+    if (!extraction) {
+      console.log('[Fluent] Failed to extract sentence from selection');
+      clearSentenceCaptureArtifacts();
+      return;
+    }
+
+    const { sentence, range, root } = extraction;
+
+    if (!sentence) {
+      console.log('[Fluent] Extracted sentence is empty');
+      clearSentenceCaptureArtifacts();
+      return;
+    }
+
+    console.log('[Fluent] Successfully extracted sentence:', sentence.slice(0, 100));
+    highlightSentenceRange(range);
+    showCapturePopover(range, root, sentence);
+    lastSelectedSentence = sentence;
+  }, 0);
+}
+
+function handlePointerDown(event: MouseEvent): void {
+  const target = event.target as Node | null;
+  if (capturePopoverElement && target && capturePopoverElement.contains(target)) {
+    return;
+  }
+
+  if (currentSentenceHighlight && target && currentSentenceHighlight.contains(target as Node)) {
+    return;
+  }
+
+  clearSentenceCaptureArtifacts();
+}
+
+function handleScroll(): void {
+  if (capturePopoverElement && currentSentenceHighlight) {
+    // Reposition using the highlight element
+    requestAnimationFrame(() => {
+      if (currentSentenceHighlight) {
+        const range = document.createRange();
+        range.selectNodeContents(currentSentenceHighlight);
+        positionCapturePopover(range);
+      }
+    });
+  }
+}
+
+function isSelectionInsideExtension(selection: Selection): boolean {
+  const anchor = selection.anchorNode;
+  const focus = selection.focusNode;
+  return isNodeInsideExtension(anchor) || isNodeInsideExtension(focus);
+}
+
+function isNodeInsideExtension(node: Node | null): boolean {
+  if (!node) return false;
+  let current: Node | null = node;
+  while (current && current !== document.body) {
+    if (
+      current instanceof HTMLElement &&
+      (current.classList.contains('fluent-popover') ||
+        current.classList.contains('fluent-popover-container') ||
+        current.classList.contains('fluent-capture-popover'))
+    ) {
+      return true;
+    }
+    current = current.parentNode;
+  }
+  return false;
+}
+
+interface SentenceExtraction {
+  sentence: string;
+  range: Range;
+  root: HTMLElement;
+}
+
+function extractSentenceFromSelection(selection: Selection): SentenceExtraction | null {
+  if (selection.rangeCount === 0) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (range.collapsed) {
+    return null;
+  }
+
+  const root = findBlockAncestor(range.commonAncestorContainer);
+  if (!root) {
+    return null;
+  }
+
+  const fullText = root.textContent ?? '';
+  if (!fullText.trim()) {
+    return null;
+  }
+
+  const startOffset = getTextOffsetWithin(root, range.startContainer, range.startOffset);
+  const endOffset = getTextOffsetWithin(root, range.endContainer, range.endOffset);
+  if (startOffset === null || endOffset === null) {
+    return null;
+  }
+
+  const sentenceBoundaries = calculateSentenceBoundaries(fullText, startOffset, endOffset);
+  if (!sentenceBoundaries) {
+    return null;
+  }
+
+  const { sentenceStart, sentenceEnd } = sentenceBoundaries;
+  const sentence = fullText.slice(sentenceStart, sentenceEnd).trim();
+  if (!sentence) {
+    return null;
+  }
+
+  const sentenceRange = document.createRange();
+  const didSetStart = setRangeBoundaryFromTextOffset(sentenceRange, root, sentenceStart, true);
+  const didSetEnd = setRangeBoundaryFromTextOffset(sentenceRange, root, sentenceEnd, false);
+
+  if (!didSetStart || !didSetEnd) {
+    return null;
+  }
+
+  return {
+    sentence,
+    range: sentenceRange,
+    root,
+  };
+}
+
+function findBlockAncestor(node: Node | null): HTMLElement | null {
+  let current: Node | null = node;
+  while (current && current !== document.body) {
+    if (current instanceof HTMLElement) {
+      const display = window.getComputedStyle(current).display;
+      if (display !== 'inline' && display !== 'inline-block' && display !== 'contents') {
+        return current;
+      }
+    }
+    current = current?.parentNode ?? null;
+  }
+
+  return document.body;
+}
+
+function getTextOffsetWithin(
+  root: HTMLElement,
+  node: Node,
+  offset: number
+): number | null {
+  try {
+    const range = document.createRange();
+    range.setStart(root, 0);
+    range.setEnd(node, offset);
+    return range.toString().length;
+  } catch (error) {
+    return null;
+  }
+}
+
+function calculateSentenceBoundaries(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number
+): { sentenceStart: number; sentenceEnd: number } | null {
+  if (selectionStart >= selectionEnd) {
+    return null;
+  }
+
+  let sentenceStart = selectionStart;
+  let searchedChars = 0;
+  while (sentenceStart > 0 && searchedChars <= SENTENCE_CHAR_LIMIT) {
+    const char = text.charAt(sentenceStart - 1);
+    if (SENTENCE_BOUNDARY_REGEX.test(char)) {
+      break;
+    }
+    sentenceStart -= 1;
+    searchedChars += 1;
+  }
+
+  let sentenceEnd = selectionEnd;
+  searchedChars = 0;
+  while (sentenceEnd < text.length && searchedChars <= SENTENCE_CHAR_LIMIT) {
+    const char = text.charAt(sentenceEnd);
+    if (SENTENCE_BOUNDARY_REGEX.test(char)) {
+      sentenceEnd += 1;
+      break;
+    }
+    sentenceEnd += 1;
+    searchedChars += 1;
+  }
+
+  if (sentenceEnd > text.length) {
+    sentenceEnd = text.length;
+  }
+
+  return { sentenceStart, sentenceEnd };
+}
+
+function setRangeBoundaryFromTextOffset(
+  range: Range,
+  root: HTMLElement,
+  offset: number,
+  isStart: boolean
+): boolean {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  let remaining = offset;
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const length = node.textContent?.length ?? 0;
+    if (remaining <= length) {
+      if (isStart) {
+        range.setStart(node, remaining);
+      } else {
+        range.setEnd(node, remaining);
+      }
+      return true;
+    }
+    remaining -= length;
+  }
+
+  if (!isStart) {
+    range.setEnd(root, root.childNodes.length);
+    return true;
+  }
+
+  return false;
+}
+
+function highlightSentenceRange(range: Range): void {
+  removeSentenceHighlight();
+
+  if (range.collapsed) {
+    console.log('[Fluent] Range is collapsed, cannot highlight');
+    return;
+  }
+
+  const highlightWrapper = document.createElement('span');
+  highlightWrapper.className = 'fluent-sentence-highlight';
+
+  try {
+    // Try the simple approach first
+    const clonedRange = range.cloneRange();
+    clonedRange.surroundContents(highlightWrapper);
+    currentSentenceHighlight = highlightWrapper;
+    console.log('[Fluent] Successfully highlighted sentence with surroundContents');
+  } catch (error) {
+    // Fallback: Use extractContents and reinsert for complex ranges
+    console.log('[Fluent] surroundContents failed, using fallback method');
+    try {
+      const contents = range.extractContents();
+      highlightWrapper.appendChild(contents);
+      range.insertNode(highlightWrapper);
+      currentSentenceHighlight = highlightWrapper;
+      console.log('[Fluent] Successfully highlighted sentence with fallback method');
+    } catch (fallbackError) {
+      console.error('[Fluent] Failed to highlight sentence:', fallbackError);
+      removeSentenceHighlight();
+    }
+  }
+}
+
+function showCapturePopover(range: Range, _root: HTMLElement, sentence: string): void {
+  removeCapturePopover();
+
+  console.log('[Fluent] Showing capture popover for sentence:', sentence.slice(0, 50) + '...');
+
+  const popover = document.createElement('div');
+  popover.className = 'fluent-capture-popover';
+
+  const sentencePreview = document.createElement('div');
+  sentencePreview.className = 'fluent-capture-popover__text';
+  sentencePreview.textContent = sentence.length > 180 ? `${sentence.slice(0, 177)}…` : sentence;
+
+  const actions = document.createElement('div');
+  actions.className = 'fluent-capture-popover__actions';
+
+  const captureButton = document.createElement('button');
+  captureButton.type = 'button';
+  captureButton.className = 'fluent-capture-popover__button';
+  captureButton.textContent = 'Capture Sentence';
+  captureButton.addEventListener('click', async () => {
+    await storeCapturedSentence(sentence);
+    popover.classList.add('fluent-capture-popover--captured');
+    captureButton.disabled = true;
+    captureButton.textContent = 'Captured';
+    setTimeout(() => {
+      clearSentenceCaptureArtifacts();
+    }, 300);
+  });
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'fluent-capture-popover__close';
+  closeButton.setAttribute('aria-label', 'Close capture popover');
+  closeButton.textContent = '×';
+  closeButton.addEventListener('click', () => {
+    clearSentenceCaptureArtifacts();
+  });
+
+  actions.appendChild(captureButton);
+  popover.appendChild(closeButton);
+  popover.appendChild(sentencePreview);
+  popover.appendChild(actions);
+
+  document.body.appendChild(popover);
+  capturePopoverElement = popover;
+
+  // Wait for next frame to ensure layout is complete before positioning
+  requestAnimationFrame(() => {
+    // Use highlight element for positioning if available (more reliable after DOM changes)
+    if (currentSentenceHighlight) {
+      const highlightRange = document.createRange();
+      highlightRange.selectNodeContents(currentSentenceHighlight);
+      positionCapturePopover(highlightRange);
+    } else {
+      positionCapturePopover(range);
+    }
+  });
+}
+
+function positionCapturePopover(range?: Range): void {
+  if (!capturePopoverElement) {
+    return;
+  }
+
+  let referenceRange = range;
+  if (!referenceRange && currentSentenceHighlight) {
+    referenceRange = document.createRange();
+    referenceRange.selectNodeContents(currentSentenceHighlight);
+  }
+
+  if (!referenceRange) {
+    console.log('[Fluent] No reference range for positioning');
+    return;
+  }
+
+  try {
+    const rect = referenceRange.getBoundingClientRect();
+    const popoverWidth = capturePopoverElement.offsetWidth || 320; // fallback to max-width
+    const popoverHeight = capturePopoverElement.offsetHeight || 100;
+    const viewportPadding = 12;
+
+    // Calculate vertical position (prefer below, but go above if not enough space)
+    let top = rect.bottom + window.scrollY + viewportPadding;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    if (spaceBelow < popoverHeight + viewportPadding && spaceAbove > spaceBelow) {
+      // Position above if more space there
+      top = rect.top + window.scrollY - popoverHeight - viewportPadding;
+    }
+
+    // Calculate horizontal position (keep within viewport)
+    let left = rect.left + window.scrollX;
+    
+    // Ensure popover doesn't overflow right edge
+    const maxLeft = window.scrollX + window.innerWidth - popoverWidth - viewportPadding;
+    if (left > maxLeft) {
+      left = maxLeft;
+    }
+    
+    // Ensure popover doesn't overflow left edge
+    const minLeft = window.scrollX + viewportPadding;
+    if (left < minLeft) {
+      left = minLeft;
+    }
+
+    // Apply with smooth constraints
+    capturePopoverElement.style.top = `${Math.max(top, window.scrollY + viewportPadding)}px`;
+    capturePopoverElement.style.left = `${left}px`;
+
+    console.log('[Fluent] Positioned popover at', { top, left, rect, popoverWidth, popoverHeight });
+  } catch (error) {
+    console.error('[Fluent] Error positioning popover:', error);
+  }
+}
+
+async function storeCapturedSentence(sentence: string): Promise<void> {
+  try {
+    const existing = await chrome.storage.local.get('fluentSentenceLog');
+    const log = existing.fluentSentenceLog ?? [];
+    const entry = {
+      sentence,
+      url: window.location.href,
+      capturedAt: new Date().toISOString(),
+    };
+    log.push(entry);
+    await chrome.storage.local.set({ fluentSentenceLog: log });
+    console.log('[Fluent] Captured sentence:', entry);
+    latestCapturedSentenceEntry = entry;
+  } catch (error) {
+    console.error('[Fluent] Failed to store captured sentence:', error);
+  }
+}
+
+function clearSentenceCaptureArtifacts(): void {
+  removeCapturePopover();
+  removeSentenceHighlight();
+  lastSelectedSentence = null;
+}
+
+function removeCapturePopover(): void {
+  if (capturePopoverElement) {
+    capturePopoverElement.remove();
+    capturePopoverElement = null;
+  }
+}
+
+function removeSentenceHighlight(): void {
+  if (!currentSentenceHighlight) {
+    return;
+  }
+
+  const parent = currentSentenceHighlight.parentNode;
+  if (!parent) {
+    currentSentenceHighlight = null;
+    return;
+  }
+
+  while (currentSentenceHighlight.firstChild) {
+    parent.insertBefore(currentSentenceHighlight.firstChild, currentSentenceHighlight);
+  }
+
+  parent.removeChild(currentSentenceHighlight);
+  currentSentenceHighlight = null;
 }
 
