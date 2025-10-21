@@ -1,16 +1,8 @@
 [
   {
     "term": "Blockchain",
-    "definitions": {
-      "General": "A decentralized, distributed ledger that records transactions across multiple computers in a way that makes it difficult to alter retroactively.",
-      "Infrastructure": "A chain of cryptographically linked blocks, each containing transaction data, maintained by a network of nodes using consensus mechanisms."
-    },
-    "examples": {
-      "General": "Bitcoin uses blockchain technology to maintain a transparent and secure record of all transactions.",
-      "Infrastructure": "Blockchain nodes validate and propagate new blocks through the peer-to-peer network."
-    },
-    "sources": ["bitcoin.org", "ethereum.org"],
-    "category": "Infrastructure",
+    "definition": "A decentralized, distributed ledger that records transactions across multiple computers in a way that makes it difficult to alter retroactively.",
+    "usage": "Bitcoin uses blockchain technology to maintain a transparent and secure record of all transactions.",
     "quiz": {
       "question": "What is the primary characteristic of a blockchain?",
       "answers": [
@@ -25,18 +17,8 @@
   },
   {
     "term": "Smart Contract",
-    "definitions": {
-      "General": "Self-executing contracts with the terms of the agreement directly written into code, automatically enforcing and executing when conditions are met.",
-      "Development": "Programs deployed on a blockchain that execute predetermined logic when specific conditions are satisfied, enabling trustless automation.",
-      "DeFi": "Automated protocols that enable financial operations like lending, borrowing, and trading without intermediaries."
-    },
-    "examples": {
-      "General": "Ethereum smart contracts enable decentralized applications to run without intermediaries.",
-      "Development": "A smart contract written in Solidity can automatically transfer tokens when payment is received.",
-      "DeFi": "Uniswap uses smart contracts to enable automated token swaps through liquidity pools."
-    },
-    "sources": ["ethereum.org", "docs.soliditylang.org"],
-    "category": "Development",
+    "definition": "Self-executing contracts with the terms of the agreement directly written into code, automatically enforcing and executing when conditions are met.",
+    "usage": "Ethereum smart contracts enable decentralized applications to run without intermediaries.",
     "quiz": {
       "question": "What makes a smart contract 'smart'?",
       "answers": [
@@ -50,63 +32,9 @@
     }
   },
   {
-    "term": "Relayer",
-    "definitions": {
-      "ERC-4337": "A bundler that collects user operations from an alternative mempool and submits them to the blockchain in batch transactions, enabling account abstraction.",
-      "DeFi": "An entity that facilitates transactions on behalf of users, often used in gasless transactions or cross-chain operations.",
-      "General": "A service that forwards messages or transactions between different systems or networks."
-    },
-    "examples": {
-      "ERC-4337": "The relayer bundles multiple user operations and submits them through the EntryPoint contract.",
-      "DeFi": "0x protocol relayers match and execute off-chain orders on-chain.",
-      "General": "A relayer passes messages from Layer 2 to Layer 1 blockchains."
-    },
-    "sources": ["eips.ethereum.org/EIPS/eip-4337", "docs.0x.org"],
-    "category": "Infrastructure",
-    "quiz": {
-      "question": "In ERC-4337, what is the primary role of a relayer/bundler?",
-      "answers": [
-        "To mine blocks",
-        "To collect and batch user operations for submission",
-        "To store blockchain data",
-        "To validate transactions"
-      ],
-      "correct": 1,
-      "hint": "Think about account abstraction and gasless transactions."
-    }
-  },
-  {
-    "term": "Account Abstraction",
-    "definitions": {
-      "ERC-4337": "A proposal that allows smart contract wallets to initiate transactions without requiring an EOA, enabling features like gas sponsorship and social recovery.",
-      "Development": "The separation of transaction validation logic from the core protocol, allowing programmable account behavior.",
-      "General": "Making blockchain accounts more flexible and user-friendly by treating them as smart contracts rather than simple key pairs."
-    },
-    "examples": {
-      "ERC-4337": "With ERC-4337, users can pay gas fees in USDC instead of ETH through a paymaster contract.",
-      "Development": "Account abstraction enables multi-signature wallets and custom validation logic at the account level.",
-      "General": "Account abstraction allows for passwordless authentication and social recovery of wallets."
-    },
-    "sources": ["eips.ethereum.org/EIPS/eip-4337", "ethereum.org"],
-    "category": "Development",
-    "quiz": {
-      "question": "What does account abstraction primarily enable?",
-      "answers": [
-        "Faster transactions",
-        "Smart contract wallets with programmable logic",
-        "Lower gas fees",
-        "Anonymous transactions"
-      ],
-      "correct": 1,
-      "hint": "Focus on the flexibility and programmability it brings to user accounts."
-    }
-  },
-  {
     "term": "DeFi",
     "definition": "Decentralized Finance - a blockchain-based form of finance that does not rely on central financial intermediaries like banks or brokerages.",
     "usage": "Users can lend, borrow, and trade through DeFi protocols without traditional banks.",
-    "sources": ["defipulse.com", "ethereum.org"],
-    "category": "DeFi",
     "quiz": {
       "question": "What does DeFi eliminate from traditional finance?",
       "answers": [
@@ -121,16 +49,8 @@
   },
   {
     "term": "NFT",
-    "definitions": {
-      "General": "Non-Fungible Token - a unique digital asset that represents ownership of a specific item or piece of content on the blockchain.",
-      "NFT": "A cryptographic token following standards like ERC-721 or ERC-1155 that proves unique ownership and authenticity of digital or physical assets."
-    },
-    "examples": {
-      "General": "Artists sell their digital artwork as NFTs, providing proof of authenticity and ownership.",
-      "NFT": "CryptoPunks are ERC-721 NFTs with verifiable scarcity and provenance on Ethereum."
-    },
-    "sources": ["ethereum.org", "opensea.io"],
-    "category": "NFT",
+    "definition": "Non-Fungible Token - a unique digital asset that represents ownership of a specific item or piece of content on the blockchain.",
+    "usage": "Artists sell their digital artwork as NFTs, providing proof of authenticity and ownership.",
     "quiz": {
       "question": "What makes an NFT 'non-fungible'?",
       "answers": [
@@ -145,16 +65,8 @@
   },
   {
     "term": "Gas Fee",
-    "definitions": {
-      "General": "The transaction fee paid to miners or validators for processing transactions and executing smart contracts on a blockchain network.",
-      "Infrastructure": "Computational cost measured in gas units, paid in the network's native currency, that incentivizes validators to include transactions in blocks."
-    },
-    "examples": {
-      "General": "During network congestion, gas fees on Ethereum can become very expensive.",
-      "Infrastructure": "Gas fees are calculated as: gas units used × gas price (in gwei) = total fee in ETH."
-    },
-    "sources": ["ethereum.org", "etherscan.io"],
-    "category": "Infrastructure",
+    "definition": "The transaction fee paid to miners or validators for processing transactions and executing smart contracts on a blockchain network.",
+    "usage": "During network congestion, gas fees on Ethereum can become very expensive.",
     "quiz": {
       "question": "Why do users pay gas fees?",
       "answers": [
@@ -171,8 +83,6 @@
     "term": "Wallet",
     "definition": "A digital tool (software or hardware) that stores private keys and allows users to interact with blockchain networks, send and receive digital assets.",
     "usage": "MetaMask is a popular browser wallet for managing Ethereum and ERC-20 tokens.",
-    "sources": ["ethereum.org", "metamask.io"],
-    "category": "Infrastructure",
     "quiz": {
       "question": "What does a crypto wallet primarily store?",
       "answers": [
@@ -187,16 +97,8 @@
   },
   {
     "term": "Consensus",
-    "definitions": {
-      "Infrastructure": "A mechanism by which a distributed network of computers agrees on the current state of the blockchain, ensuring all participants have the same version of the truth.",
-      "General": "The process by which blockchain nodes reach agreement on which transactions are valid and in what order they should be recorded."
-    },
-    "examples": {
-      "Infrastructure": "Bitcoin uses Proof of Work consensus, while Ethereum now uses Proof of Stake.",
-      "General": "Consensus mechanisms prevent double-spending and ensure network security without central authority."
-    },
-    "sources": ["bitcoin.org", "ethereum.org"],
-    "category": "Infrastructure",
+    "definition": "A mechanism by which a distributed network of computers agrees on the current state of the blockchain, ensuring all participants have the same version of the truth.",
+    "usage": "Bitcoin uses Proof of Work consensus, while Ethereum now uses Proof of Stake.",
     "quiz": {
       "question": "What is the purpose of a consensus mechanism?",
       "answers": [
@@ -213,8 +115,6 @@
     "term": "Mining",
     "definition": "The process of validating transactions and adding new blocks to a Proof of Work blockchain by solving complex mathematical puzzles, rewarded with cryptocurrency.",
     "usage": "Bitcoin miners use specialized hardware to compete in solving cryptographic puzzles.",
-    "sources": ["bitcoin.org"],
-    "category": "Infrastructure",
     "quiz": {
       "question": "What do miners receive as a reward?",
       "answers": [
@@ -229,16 +129,8 @@
   },
   {
     "term": "Staking",
-    "definitions": {
-      "Infrastructure": "The process of locking up cryptocurrency to support a Proof of Stake network's operations and security, earning rewards in return.",
-      "DeFi": "Locking tokens in a protocol to earn yield, provide liquidity, or participate in governance."
-    },
-    "examples": {
-      "Infrastructure": "Ethereum validators stake 32 ETH to participate in block validation and earn staking rewards.",
-      "DeFi": "Users stake LP tokens in Curve Finance to earn trading fees and CRV rewards."
-    },
-    "sources": ["ethereum.org"],
-    "category": "Infrastructure",
+    "definition": "The process of locking up cryptocurrency to support a Proof of Stake network's operations and security, earning rewards in return.",
+    "usage": "Ethereum validators stake 32 ETH to participate in block validation and earn staking rewards.",
     "quiz": {
       "question": "What is required to become a validator through staking?",
       "answers": [
@@ -255,8 +147,6 @@
     "term": "dApp",
     "definition": "Decentralized Application - an application that runs on a blockchain network rather than centralized servers, typically using smart contracts.",
     "usage": "Uniswap is a popular dApp that allows users to swap tokens without a centralized exchange.",
-    "sources": ["ethereum.org"],
-    "category": "Development",
     "quiz": {
       "question": "Where does a dApp primarily run?",
       "answers": [
@@ -271,16 +161,8 @@
   },
   {
     "term": "Token",
-    "definitions": {
-      "General": "A digital asset created on an existing blockchain that can represent various forms of value, utility, or ownership rights.",
-      "DeFi": "Fungible or non-fungible assets issued on a blockchain, often representing governance rights, rewards, or protocol ownership."
-    },
-    "examples": {
-      "General": "The UNI token gives holders governance rights in the Uniswap protocol.",
-      "DeFi": "LP tokens represent a user's share of liquidity in a decentralized exchange pool."
-    },
-    "sources": ["ethereum.org"],
-    "category": "General",
+    "definition": "A digital asset created on an existing blockchain that can represent various forms of value, utility, or ownership rights.",
+    "usage": "The UNI token gives holders governance rights in the Uniswap protocol.",
     "quiz": {
       "question": "How do tokens differ from coins?",
       "answers": [
@@ -297,8 +179,6 @@
     "term": "DAO",
     "definition": "Decentralized Autonomous Organization - an organization governed by smart contracts and token holders, without centralized leadership.",
     "usage": "MakerDAO allows token holders to vote on important protocol decisions.",
-    "sources": ["ethereum.org"],
-    "category": "DAO",
     "quiz": {
       "question": "Who controls a DAO?",
       "answers": [
@@ -313,16 +193,8 @@
   },
   {
     "term": "Layer 2",
-    "definitions": {
-      "L2": "A secondary protocol built on top of a main blockchain (Layer 1) to improve scalability and reduce transaction costs while leveraging the security of the main chain.",
-      "Infrastructure": "Scaling solutions like rollups that process transactions off the main chain but settle final state on Layer 1 for security."
-    },
-    "examples": {
-      "L2": "Arbitrum and Optimism are Layer 2 solutions that make Ethereum transactions faster and cheaper.",
-      "Infrastructure": "zkRollups bundle hundreds of transactions into one proof submitted to Ethereum mainnet."
-    },
-    "sources": ["ethereum.org", "l2beat.com"],
-    "category": "L2",
+    "definition": "A secondary protocol built on top of a main blockchain (Layer 1) to improve scalability and reduce transaction costs while leveraging the security of the main chain.",
+    "usage": "Arbitrum and Optimism are Layer 2 solutions that make Ethereum transactions faster and cheaper.",
     "quiz": {
       "question": "What is the main benefit of Layer 2 solutions?",
       "answers": [
@@ -337,16 +209,8 @@
   },
   {
     "term": "Oracle",
-    "definitions": {
-      "General": "A service that provides external real-world data to smart contracts on the blockchain, acting as a bridge between on-chain and off-chain information.",
-      "DeFi": "A crucial component that feeds price data, event outcomes, and other external information to DeFi protocols for accurate operations."
-    },
-    "examples": {
-      "General": "Chainlink oracles feed price data to DeFi protocols for accurate asset valuations.",
-      "DeFi": "Aave uses oracles to determine when to liquidate undercollateralized positions based on current prices."
-    },
-    "sources": ["chain.link", "ethereum.org"],
-    "category": "Infrastructure",
+    "definition": "A service that provides external real-world data to smart contracts on the blockchain, acting as a bridge between on-chain and off-chain information.",
+    "usage": "Chainlink oracles feed price data to DeFi protocols for accurate asset valuations.",
     "quiz": {
       "question": "Why are oracles necessary?",
       "answers": [
@@ -363,8 +227,6 @@
     "term": "Solidity",
     "definition": "A high-level programming language designed for writing smart contracts that run on the Ethereum Virtual Machine (EVM).",
     "usage": "Developers use Solidity to create decentralized applications on Ethereum.",
-    "sources": ["docs.soliditylang.org"],
-    "category": "Development",
     "quiz": {
       "question": "What is Solidity primarily used for?",
       "answers": [
@@ -381,8 +243,6 @@
     "term": "Web3",
     "definition": "The vision of a decentralized internet built on blockchain technology, where users own their data and digital assets rather than relying on centralized platforms.",
     "usage": "Web3 applications give users control over their identity and data through blockchain technology.",
-    "sources": ["ethereum.org", "web3.foundation"],
-    "category": "General",
     "quiz": {
       "question": "What distinguishes Web3 from Web2?",
       "answers": [
@@ -399,8 +259,6 @@
     "term": "MetaMask",
     "definition": "A popular browser extension and mobile wallet that allows users to interact with Ethereum blockchain and Web3 applications.",
     "usage": "Users connect their MetaMask wallet to dApps to sign transactions and manage tokens.",
-    "sources": ["metamask.io"],
-    "category": "Infrastructure",
     "quiz": {
       "question": "What type of tool is MetaMask?",
       "answers": [
@@ -417,8 +275,6 @@
     "term": "ERC-20",
     "definition": "A technical standard for fungible tokens on the Ethereum blockchain, defining a common set of rules for how tokens should behave.",
     "usage": "Most tokens on Ethereum, like USDC and DAI, follow the ERC-20 standard.",
-    "sources": ["eips.ethereum.org/EIPS/eip-20"],
-    "category": "Development",
     "quiz": {
       "question": "What does the ERC-20 standard define?",
       "answers": [
@@ -435,8 +291,6 @@
     "term": "Yield Farming",
     "definition": "The practice of staking or lending crypto assets in DeFi protocols to earn rewards, often in the form of additional tokens or interest.",
     "usage": "Liquidity providers engage in yield farming by depositing assets into DeFi pools to earn trading fees and token rewards.",
-    "sources": ["defipulse.com"],
-    "category": "DeFi",
     "quiz": {
       "question": "What is the goal of yield farming?",
       "answers": [
@@ -453,8 +307,6 @@
     "term": "Liquidity Pool",
     "definition": "A collection of cryptocurrency funds locked in a smart contract, used to facilitate decentralized trading by providing liquidity for token swaps.",
     "usage": "Uniswap liquidity pools allow traders to swap tokens instantly without traditional order books.",
-    "sources": ["uniswap.org"],
-    "category": "DeFi",
     "quiz": {
       "question": "What is the main purpose of a liquidity pool?",
       "answers": [

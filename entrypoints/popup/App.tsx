@@ -1,17 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { calculateStats, exportAsJSON, exportAsMarkdown, type UserStats } from '../../utils/stats';
 import { getLogs, type LogEntry } from '../../utils/logger';
+import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
+import PokedexView from './PokedexView';
 import './App.css';
 
 interface TermsByDate {
   [date: string]: Set<string>;
 }
 
+interface GlossaryEntry {
+  term: string;
+  category?: string;
+  definition?: string;
+  definitions?: { [context: string]: string };
+  [key: string]: any;
+}
+
+type ViewType = 'dashboard' | 'pokedex';
+
 export default function App() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [termsByDate, setTermsByDate] = useState<TermsByDate>({});
   const [loading, setLoading] = useState(true);
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [analysisState, setAnalysisState] = useState<AnalysisModeState>({ active: false, analyzing: false });
+  const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
 
   useEffect(() => {
     loadData();
@@ -19,13 +34,17 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [statsData, logsData] = await Promise.all([
+      const [statsData, logsData, analysisStateData, glossaryData] = await Promise.all([
         calculateStats(),
         getLogs(),
+        getAnalysisState(),
+        loadGlossary(),
       ]);
 
       setStats(statsData);
       setLogs(logsData);
+      setAnalysisState(analysisStateData);
+      setGlossary(glossaryData);
 
       // Group terms by date
       const grouped: TermsByDate = {};
@@ -42,6 +61,41 @@ export default function App() {
       console.error('[Fluent] Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGlossary = async (): Promise<GlossaryEntry[]> => {
+    try {
+      const glossaryUrl = chrome.runtime.getURL('glossary.json');
+      const response = await fetch(glossaryUrl);
+      return await response.json();
+    } catch (error) {
+      console.error('[Fluent] Failed to load glossary:', error);
+      return [];
+    }
+  };
+
+  const handleAnalyzeClick = async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab.id) {
+      console.error('[Fluent] No active tab found');
+      return;
+    }
+
+    if (!analysisState.active && !analysisState.analyzing) {
+      // Start analysis
+      setAnalysisState({ active: false, analyzing: true });
+      
+      chrome.tabs.sendMessage(tab.id, { action: 'analyzePage' }, () => {
+        // Reload state after analysis completes
+        loadData();
+      });
+    } else if (analysisState.active) {
+      // Clear analysis
+      chrome.tabs.sendMessage(tab.id, { action: 'clearAnalysis' }, () => {
+        setAnalysisState({ active: false, analyzing: false });
+      });
     }
   };
 
@@ -79,16 +133,53 @@ export default function App() {
     <div className="app">
       {/* Header */}
       <header className="header">
-        <div className="header__logo">
-          <img src="/icon.svg" alt="Fluent Logo" width="40" height="40" />
-          <h1 className="header__title">Fluent</h1>
+        <div className="header__top">
+          <div className="header__logo">
+            <img src="/icon.svg" alt="Fluent Logo" width="40" height="40" />
+            <h1 className="header__title">Fluent</h1>
+          </div>
         </div>
-        <p className="header__subtitle">Web3 Learning Dashboard</p>
+        <p className="header__subtitle">Web3 Learning Platform</p>
+        
+        {/* Analyze Button */}
+        <div className="header__analyze">
+          <button 
+            className={`analyze-button ${analysisState.analyzing ? 'analyze-button--analyzing' : ''} ${analysisState.active ? 'analyze-button--active' : ''}`}
+            onClick={handleAnalyzeClick}
+            disabled={analysisState.analyzing}
+          >
+            <span className="analyze-button__icon">
+              {analysisState.analyzing ? '✨' : analysisState.active ? '✕' : '🔍'}
+            </span>
+            <span className="analyze-button__text">
+              {analysisState.analyzing ? 'Analyzing...' : analysisState.active ? 'Clear Analysis' : 'Analyze Page'}
+            </span>
+          </button>
+        </div>
+        
+        {/* Tab Navigation */}
+        <div className="header__tabs">
+          <button 
+            className={`header__tab ${currentView === 'dashboard' ? 'header__tab--active' : ''}`}
+            onClick={() => setCurrentView('dashboard')}
+          >
+            📊 Dashboard
+          </button>
+          <button 
+            className={`header__tab ${currentView === 'pokedex' ? 'header__tab--active' : ''}`}
+            onClick={() => setCurrentView('pokedex')}
+          >
+            📚 Pokédex
+          </button>
+        </div>
       </header>
 
-      {/* Stats Cards */}
-      {stats && (
-        <div className="stats">
+      {/* Main Content */}
+      {currentView === 'dashboard' && (
+        <>
+          {/* Stats Cards */}
+          {stats && (
+            <div className="stats">
           <div className="stat-card stat-card--primary">
             <div className="stat-card__value">{stats.totalXP}</div>
             <div className="stat-card__label">Total XP</div>
@@ -200,6 +291,13 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+        </>
+      )}
+
+      {/* Pokédex View */}
+      {currentView === 'pokedex' && (
+        <PokedexView glossary={glossary} />
       )}
 
       {/* Footer */}

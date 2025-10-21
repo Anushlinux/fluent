@@ -4,14 +4,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { defineContentScript } from 'wxt/sandbox';
 import { Popover, type Quiz } from '../../components/Popover';
 import { logPopoverView, logQuizResult } from '../../utils/logger';
-import { tagSentence } from '../../utils/tagger';
+import { tagSentence, detectPageContext } from '../../utils/tagger';
+import { unlockTerm } from '../../utils/pokedex';
 import './content.css';
 import browser from 'webextension-polyfill';
 
 interface GlossaryEntry {
   term: string;
-  definition: string;
-  usage: string;
+  definition?: string; // Legacy single definition
+  definitions?: { [context: string]: string }; // New context-aware definitions
+  usage?: string; // Legacy single example
+  examples?: { [context: string]: string }; // New context-aware examples
+  sources?: string[];
+  category?: string;
   quiz: Quiz;
 }
 
@@ -34,6 +39,9 @@ let latestCapturedSentenceEntry: {
   context: string;
   timestamp: string;
 } | null = null;
+let analysisActive: boolean = false;
+let analyzing: boolean = false;
+let pageContext: string = 'General';
 
 const SENTENCE_BOUNDARY_REGEX = /[.!?]/;
 const SENTENCE_CHAR_LIMIT = 100;
@@ -114,11 +122,34 @@ export default defineContentScript({
     }
 
     await loadGlossary();
+    
+    // Detect page context
+    pageContext = detectPageContext(document.body.innerText).context;
+    console.log(`[Fluent] Page context detected: ${pageContext}`);
 
+    // Restore analysis state if page was previously analyzed
+    await restoreAnalysisState();
+
+    // Listen for analyze commands from popup
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.action === 'analyzePage') {
+        handleAnalyzeRequest().then(() => {
+          sendResponse({ success: true });
+        });
+        return true; // Required for async response
+      } else if (message.action === 'clearAnalysis') {
+        handleClearRequest().then(() => {
+          sendResponse({ success: true });
+        });
+        return true;
+      }
+    });
+
+    // Initialize selection capture
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeExtension);
+      document.addEventListener('DOMContentLoaded', initializeSelectionCapture);
     } else {
-      initializeExtension();
+      initializeSelectionCapture();
     }
   },
 });
@@ -138,17 +169,102 @@ async function loadGlossary(): Promise<void> {
 }
 
 /**
- * Initialize the extension on the page
+ * Restore analysis state on page load
  */
-function initializeExtension(): void {
+async function restoreAnalysisState(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get('analysisMode');
+    const state = result.analysisMode;
+    
+    if (state?.active) {
+      console.log('[Fluent] Restoring previous analysis state');
+      // Re-highlight terms without animation
+      const matches = findTermsInPage();
+      matches.forEach(match => highlightTerm(match));
+      analysisActive = true;
+    }
+  } catch (error) {
+    console.error('[Fluent] Failed to restore analysis state:', error);
+  }
+}
+
+/**
+ * Handle analyze page request from popup
+ */
+async function handleAnalyzeRequest(): Promise<void> {
+  if (analyzing || analysisActive) {
+    console.log('[Fluent] Analysis already active or in progress');
+    return;
+  }
+  
+  console.log('[Fluent] Starting page analysis...');
+  analyzing = true;
+  
+  // Show scanning animation
+  await showScanningAnimation();
+  
   // Find and highlight terms
   const matches = findTermsInPage();
   console.log(`[Fluent] Found ${matches.length} term matches on page`);
-  
-  // Highlight each match
   matches.forEach(match => highlightTerm(match));
+  
+  // Update state
+  analyzing = false;
+  analysisActive = true;
+  
+  // Persist state
+  await chrome.storage.local.set({ 
+    analysisMode: { active: true, analyzing: false } 
+  });
+  
+  console.log('[Fluent] Page analysis complete');
+}
 
-  initializeSelectionCapture();
+/**
+ * Handle clear analysis request from popup
+ */
+async function handleClearRequest(): Promise<void> {
+  console.log('[Fluent] Clearing analysis...');
+  clearAllHighlights();
+  analysisActive = false;
+  
+  await chrome.storage.local.set({ 
+    analysisMode: { active: false, analyzing: false } 
+  });
+  
+  console.log('[Fluent] Analysis cleared');
+}
+
+/**
+ * Show scanning animation overlay
+ */
+function showScanningAnimation(): Promise<void> {
+  return new Promise((resolve) => {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'fluent-scan-overlay';
+    
+    // Create scan line
+    const scanLine = document.createElement('div');
+    scanLine.className = 'fluent-scan-line';
+    
+    // Create scan text
+    const scanText = document.createElement('div');
+    scanText.className = 'fluent-scan-text';
+    scanText.style.paddingLeft = '32px'; // Make room for pulsing indicator
+    scanText.textContent = 'Scanning page...';
+    
+    overlay.appendChild(scanLine);
+    document.body.appendChild(overlay);
+    document.body.appendChild(scanText);
+    
+    // Remove after animation (1.5s)
+    setTimeout(() => {
+      overlay.remove();
+      scanText.remove();
+      resolve();
+    }, 1500);
+  });
 }
 
 /**
@@ -342,8 +458,33 @@ function showPopover(
   // Get context sentence
   const contextSentence = getContextSentence(event.target as HTMLElement);
   
-  // Log popover view
+  // Detect context for this specific sentence and page
+  const sentenceContext = tagSentence(contextSentence, glossary.map(e => e.term));
+  const detectedContext = sentenceContext.context !== 'General' ? sentenceContext.context : pageContext;
+  
+  // Select appropriate definition and example based on context
+  let definition: string;
+  let usage: string;
+  
+  if (entry.definitions) {
+    // New context-aware format
+    definition = entry.definitions[detectedContext] || entry.definitions['General'] || entry.definitions[Object.keys(entry.definitions)[0]];
+  } else {
+    // Legacy format
+    definition = entry.definition || '';
+  }
+  
+  if (entry.examples) {
+    // New context-aware format
+    usage = entry.examples[detectedContext] || entry.examples['General'] || entry.examples[Object.keys(entry.examples)[0]];
+  } else {
+    // Legacy format
+    usage = entry.usage || '';
+  }
+  
+  // Log popover view and unlock term
   logPopoverView(entry.term, window.location.href, contextSentence);
+  unlockTerm(entry.term);
 
   const captureCandidate = lastSelectedSentence || contextSentence || '';
   const handleCaptureSentence = captureCandidate
@@ -371,8 +512,8 @@ function showPopover(
   root.render(
     <Popover
       term={entry.term}
-      definition={entry.definition}
-      usage={entry.usage}
+      definition={definition}
+      usage={usage}
       quiz={entry.quiz}
       position={{ x: event.clientX, y: event.clientY }}
       mode={mode}
@@ -381,6 +522,8 @@ function showPopover(
       onCaptureSentence={handleCaptureSentence}
       onQuizAnswer={handleQuizAnswer}
       onClose={mode === 'full' ? handleClose : undefined}
+      sources={entry.sources}
+      detectedContext={detectedContext}
     />
   );
   
@@ -924,5 +1067,21 @@ function removeSentenceHighlight(): void {
 
   parent.removeChild(currentSentenceHighlight);
   currentSentenceHighlight = null;
+}
+
+/**
+ * Clear all existing term highlights from the page
+ */
+function clearAllHighlights(): void {
+  const highlights = document.querySelectorAll('.fluent-highlight');
+  highlights.forEach(highlight => {
+    const parent = highlight.parentNode;
+    if (parent) {
+      // Replace highlight span with its text content
+      const textNode = document.createTextNode(highlight.textContent || '');
+      parent.replaceChild(textNode, highlight);
+    }
+  });
+  console.log(`[Fluent] Cleared ${highlights.length} highlights`);
 }
 

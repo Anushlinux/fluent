@@ -248,3 +248,36 @@
   font-weight: 500;
 }
 
+/* Footer */
+.fluent-popover__footer {
+  padding: 12px 20px;
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.fluent-popover__context {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background-color: #e0e7ff;
+  color: #667eea;
+  border-radius: 4px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.fluent-popover__sources {
+  line-height: 1.4;
+}
+
+.fluent-popover__sources strong {
+  font-weight: 600;
+  color: #374151;
+  text-transform: none;
+  letter-spacing: normal;
+  margin: 0;
+  display: inline;
+  font-size: 11px;
+}
+

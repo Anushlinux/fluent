@@ -152,3 +152,136 @@
   box-sizing: border-box;
 }
 
+/* Scanning Animation */
+.fluent-scan-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.fluent-scan-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 120px;
+  animation: fluent-scan-sweep 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Main scan beam */
+.fluent-scan-line::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(102, 126, 234, 0.2) 20%,
+    rgba(102, 126, 234, 1) 50%, 
+    rgba(102, 126, 234, 0.2) 80%,
+    transparent 100%);
+  box-shadow: 
+    0 0 40px 8px rgba(102, 126, 234, 0.6),
+    0 0 80px 16px rgba(102, 126, 234, 0.3);
+  transform: translateY(-50%);
+}
+
+/* Light glow area above scan line */
+.fluent-scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(102, 126, 234, 0.03) 40%,
+    rgba(102, 126, 234, 0.08) 80%,
+    rgba(102, 126, 234, 0.15) 100%);
+}
+
+@keyframes fluent-scan-sweep {
+  from {
+    top: -120px;
+    opacity: 1;
+  }
+  to {
+    top: 100%;
+    opacity: 1;
+  }
+}
+
+.fluent-scan-text {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(102, 126, 234, 0.96);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  box-shadow: 
+    0 8px 32px rgba(102, 126, 234, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: fluent-scan-fade 1.5s ease-out;
+  z-index: 2147483647;
+  pointer-events: none;
+  letter-spacing: 0.3px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.fluent-scan-text::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: fluent-scan-pulse 1s infinite;
+}
+
+@keyframes fluent-scan-pulse {
+  0%, 100% { 
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  }
+  50% { 
+    opacity: 0.4;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+  }
+}
+
+@keyframes fluent-scan-fade {
+  0% { 
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  10% { 
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  80% { 
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% { 
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+

@@ -28,6 +28,8 @@ export interface PopoverProps {
   onCaptureSentence?: () => Promise<void> | void;
   onQuizAnswer?: (correct: boolean) => void;
   onClose?: () => void;
+  sources?: string[];
+  detectedContext?: string;
 }
 
 export const Popover: React.FC<PopoverProps> = ({
@@ -42,6 +44,8 @@ export const Popover: React.FC<PopoverProps> = ({
   onCaptureSentence,
   onQuizAnswer,
   onClose,
+  sources,
+  detectedContext,
 }) => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -210,6 +214,21 @@ export const Popover: React.FC<PopoverProps> = ({
       {mode === 'preview' && (
         <div className="fluent-popover__hint">
           Click the term to take a quiz and earn XP
+        </div>
+      )}
+      
+      {mode === 'full' && (sources || detectedContext) && (
+        <div className="fluent-popover__footer">
+          {detectedContext && detectedContext !== 'General' && (
+            <div className="fluent-popover__context">
+              Context: {detectedContext}
+            </div>
+          )}
+          {sources && sources.length > 0 && (
+            <div className="fluent-popover__sources">
+              <strong>Sources:</strong> {sources.join(', ')}
+            </div>
+          )}
         </div>
       )}
     </div>

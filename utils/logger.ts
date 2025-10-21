@@ -64,6 +64,12 @@ export async function logQuizResult(
     logs,
     totalXP: newTotalXP
   });
+  
+  // Mark quiz as completed in Pokedex
+  if (correct) {
+    const { markQuizCompleted } = await import('./pokedex');
+    await markQuizCompleted(term);
+  }
 }
 
 /**
