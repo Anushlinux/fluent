@@ -24,6 +24,11 @@ export default defineConfig({
   },
   vite: () => ({
     plugins: [react()],
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || ''),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ''),
+      'import.meta.env.VITE_WEBSITE_URL': JSON.stringify(process.env.VITE_WEBSITE_URL || 'http://localhost:3001'),
+    },
   }),
 });
 

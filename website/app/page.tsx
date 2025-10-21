@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GraphData } from '@/lib/graphTypes';
-import { getGraphData, saveGraphData, hasGraphData } from '@/lib/graphStorage';
+import { getGraphData, saveGraphData, subscribeToGraphUpdates } from '@/lib/graphStorage';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 import GraphViewer from '@/components/GraphViewer';
 import QueryControls from '@/components/QueryControls';
 import StatsPanel from '@/components/StatsPanel';
@@ -12,20 +14,80 @@ export default function Home() {
   const [filteredData, setFilteredData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
+  const router = useRouter();
+  const supabase = getSupabaseBrowserClient();
 
-  // Load saved graph data on mount
+  // Check authentication and load data on mount
   useEffect(() => {
-    loadSavedData();
+    // Check if Supabase is configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://your-project.supabase.co') {
+      setSupabaseConfigured(false);
+      setLoading(false);
+      return;
+    }
+    
+    checkAuthAndLoadData();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (session?.user) {
+        setUser(session.user);
+        loadSavedData();
+      } else {
+        setUser(null);
+        setGraphData(null);
+        setFilteredData(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const loadSavedData = async () => {
+  // Subscribe to real-time graph updates
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToGraphUpdates((data) => {
+      setGraphData(data);
+      setFilteredData(data);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user]);
+
+  const checkAuthAndLoadData = async () => {
     setLoading(true);
+    
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (currentUser) {
+      setUser(currentUser);
+      await loadSavedData();
+    } else {
+      setUser(null);
+    }
+    
+    setLoading(false);
+  };
+
+  const loadSavedData = async () => {
     const data = await getGraphData();
     if (data) {
       setGraphData(data);
       setFilteredData(data);
     }
-    setLoading(false);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,9 +107,28 @@ export default function Home() {
       await saveGraphData(data);
       setGraphData(data);
       setFilteredData(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load graph data:', error);
-      alert('Failed to load graph file. Please check the file format.');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      
+      if (errorMessage.includes('Supabase environment variables')) {
+        alert(
+          '⚠️ Supabase Not Configured\n\n' +
+          'Please follow these steps:\n\n' +
+          '1. Create a Supabase project at https://supabase.com\n' +
+          '2. Copy your Project URL and anon key from Project Settings → API\n' +
+          '3. Add them to website/.env.local:\n' +
+          '   NEXT_PUBLIC_SUPABASE_URL=your-url\n' +
+          '   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-key\n' +
+          '4. Follow SUPABASE_SETUP.md to create database tables\n' +
+          '5. Restart the dev server\n\n' +
+          'See SUPABASE_SETUP.md for detailed instructions.'
+        );
+      } else if (errorMessage.includes('User not authenticated')) {
+        alert('Please sign in first before uploading graph data.');
+      } else {
+        alert(`Failed to load graph file:\n\n${errorMessage}\n\nPlease check the file format and your Supabase configuration.`);
+      }
     } finally {
       setUploading(false);
     }
@@ -61,9 +142,28 @@ export default function Home() {
       await saveGraphData(data);
       setGraphData(data);
       setFilteredData(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load demo data:', error);
-      alert('Failed to load demo data');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      
+      if (errorMessage.includes('Supabase environment variables')) {
+        alert(
+          '⚠️ Supabase Not Configured\n\n' +
+          'Please follow these steps:\n\n' +
+          '1. Create a Supabase project at https://supabase.com\n' +
+          '2. Copy your Project URL and anon key from Project Settings → API\n' +
+          '3. Add them to website/.env.local:\n' +
+          '   NEXT_PUBLIC_SUPABASE_URL=your-url\n' +
+          '   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-key\n' +
+          '4. Follow SUPABASE_SETUP.md to create database tables\n' +
+          '5. Restart the dev server\n\n' +
+          'See SUPABASE_SETUP.md for detailed instructions.'
+        );
+      } else if (errorMessage.includes('User not authenticated')) {
+        alert('Please sign in first before loading demo data.');
+      } else {
+        alert(`Failed to load demo data:\n\n${errorMessage}\n\nPlease check your Supabase configuration.`);
+      }
     } finally {
       setUploading(false);
     }
@@ -72,6 +172,121 @@ export default function Home() {
   const handleFilterChange = (newData: GraphData) => {
     setFilteredData(newData);
   };
+
+  // Setup required screen
+  if (!supabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-bold text-gray-900 mb-4">
+              Fluent Knowledge Graph
+            </h1>
+            <p className="text-xl text-gray-600">
+              Setup Required
+            </p>
+          </div>
+
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-8 mb-8">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">⚠️</div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Supabase Configuration Missing
+                </h2>
+                <p className="text-gray-700 mb-4">
+                  The website requires Supabase to store and sync your knowledge graph data.
+                  Please follow the setup instructions below:
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Setup (5 minutes)</h3>
+            
+            <ol className="space-y-6">
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex-shrink-0">
+                  1
+                </span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 mb-2">Create Supabase Project</h4>
+                  <p className="text-gray-600 mb-2">
+                    Go to <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">supabase.com</a> and create a new project
+                  </p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex-shrink-0">
+                  2
+                </span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 mb-2">Get Credentials</h4>
+                  <p className="text-gray-600 mb-2">
+                    From your Supabase dashboard: <strong>Project Settings → API</strong>
+                  </p>
+                  <p className="text-gray-600">
+                    Copy the <strong>Project URL</strong> and <strong>anon/public key</strong>
+                  </p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex-shrink-0">
+                  3
+                </span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 mb-2">Configure Environment</h4>
+                  <p className="text-gray-600 mb-3">
+                    Create or update <code className="bg-gray-100 px-2 py-1 rounded">website/.env.local</code> with:
+                  </p>
+                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm">
+{`NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-key`}
+                  </pre>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex-shrink-0">
+                  4
+                </span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 mb-2">Create Database Tables</h4>
+                  <p className="text-gray-600 mb-2">
+                    In Supabase <strong>SQL Editor</strong>, run the SQL from:
+                  </p>
+                  <p className="text-gray-600">
+                    <code className="bg-gray-100 px-2 py-1 rounded">SUPABASE_SETUP.md</code>
+                  </p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-4">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex-shrink-0">
+                  5
+                </span>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 mb-2">Restart Server</h4>
+                  <p className="text-gray-600">
+                    Stop the dev server and run <code className="bg-gray-100 px-2 py-1 rounded">npm run dev</code> again
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <div className="mt-8 p-4 bg-indigo-50 rounded-lg">
+              <p className="text-sm text-indigo-900">
+                📖 <strong>Need detailed instructions?</strong> Check <code>website/SETUP.md</code> and <code>SUPABASE_SETUP.md</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -84,7 +299,69 @@ export default function Home() {
     );
   }
 
-  // Landing page - no data loaded
+  // Landing page - not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold text-gray-900 mb-4">
+              Fluent Knowledge Graph
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Visualize your learning journey through an interactive knowledge graph
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => router.push('/login')}
+                className="px-8 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => router.push('/signup')}
+                className="px-8 py-3 bg-white text-indigo-600 border-2 border-indigo-600 font-medium rounded-lg hover:bg-indigo-50"
+              >
+                Sign Up
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">How It Works</h3>
+            <ol className="space-y-4 text-gray-600">
+              <li className="flex items-start">
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold mr-3 flex-shrink-0">
+                  1
+                </span>
+                <span>Sign up or log in to create your account</span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold mr-3 flex-shrink-0">
+                  2
+                </span>
+                <span>Install the Fluent browser extension to capture sentences while browsing</span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold mr-3 flex-shrink-0">
+                  3
+                </span>
+                <span>Use the "Sync" button in the extension to upload your captured data</span>
+              </li>
+              <li className="flex items-start">
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold mr-3 flex-shrink-0">
+                  4
+                </span>
+                <span>View and explore your knowledge graph automatically updated in real-time</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Landing page - authenticated but no data
   if (!graphData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
@@ -94,8 +371,14 @@ export default function Home() {
               Fluent Knowledge Graph
             </h1>
             <p className="text-xl text-gray-600">
-              Visualize your learning journey through an interactive knowledge graph
+              Welcome, {user.email}
             </p>
+            <button
+              onClick={handleSignOut}
+              className="mt-4 text-sm text-gray-600 hover:text-gray-900"
+            >
+              Sign Out
+            </button>
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
@@ -196,20 +479,24 @@ export default function Home() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Fluent Knowledge Graph
-            </h1>
-            <button
-              onClick={() => {
-                if (confirm('Clear current graph and load new data?')) {
-                  setGraphData(null);
-                  setFilteredData(null);
-                }
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Load New Data
-            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Fluent Knowledge Graph
+              </h1>
+              {user && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {user.email}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleSignOut}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
       </header>

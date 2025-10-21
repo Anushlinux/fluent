@@ -16,5 +16,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["chrome"]
   },
-  "include": ["entrypoints", "utils", "components"]
+  "include": ["entrypoints", "utils", "components", "env.d.ts"]
 }

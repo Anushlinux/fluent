@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { calculateStats, exportAsJSON, exportAsMarkdown, type UserStats } from '../../utils/stats';
 import { getLogs, type LogEntry } from '../../utils/logger';
 import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
 import { exportGraphData, downloadGraphData } from '../../utils/graphExport';
+import { checkAuthState, signOut, openLoginPage, type AuthState } from '../../utils/auth';
+import { syncCapturedSentences, getSyncStats, type SyncStats } from '../../utils/syncService';
+import { initializeSupabase } from '../../utils/supabase';
 import PokedexView from './PokedexView';
 import './App.css';
 
@@ -28,24 +31,37 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [analysisState, setAnalysisState] = useState<AnalysisModeState>({ active: false, analyzing: false });
   const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
+  const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false, user: null, session: null });
+  const [syncStats, setSyncStats] = useState<SyncStats>({ unsyncedCount: 0, lastSyncTimestamp: null });
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    loadData();
+    initializeApp();
   }, []);
+
+  const initializeApp = async () => {
+    await initializeSupabase();
+    await loadData();
+  };
 
   const loadData = async () => {
     try {
-      const [statsData, logsData, analysisStateData, glossaryData] = await Promise.all([
+      const [statsData, logsData, analysisStateData, glossaryData, auth, sync] = await Promise.all([
         calculateStats(),
         getLogs(),
         getAnalysisState(),
         loadGlossary(),
+        checkAuthState(),
+        getSyncStats(),
       ]);
 
       setStats(statsData);
       setLogs(logsData);
       setAnalysisState(analysisStateData);
       setGlossary(glossaryData);
+      setAuthState(auth);
+      setSyncStats(sync);
 
       // Group terms by date
       const grouped: TermsByDate = {};
@@ -119,6 +135,66 @@ export default function App() {
     }
   };
 
+  const handleSyncClick = async () => {
+    if (!authState.isAuthenticated) {
+      setSyncMessage({ type: 'error', text: 'Please log in first' });
+      return;
+    }
+
+    if (syncStats.unsyncedCount === 0) {
+      setSyncMessage({ type: 'error', text: 'No data to sync' });
+      setTimeout(() => setSyncMessage(null), 3000);
+      return;
+    }
+
+    setSyncing(true);
+    setSyncMessage(null);
+
+    try {
+      const result = await syncCapturedSentences();
+
+      if (result.success) {
+        setSyncMessage({
+          type: 'success',
+          text: `Synced ${result.sentencesSynced} sentences!`,
+        });
+        
+        // Refresh sync stats
+        const newSyncStats = await getSyncStats();
+        setSyncStats(newSyncStats);
+      } else {
+        setSyncMessage({
+          type: 'error',
+          text: result.error || 'Sync failed',
+        });
+      }
+    } catch (error: any) {
+      setSyncMessage({
+        type: 'error',
+        text: error.message || 'Sync failed',
+      });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
+
+  const handleLogin = () => {
+    openLoginPage();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setAuthState({ isAuthenticated: false, user: null, session: null });
+      setSyncMessage({ type: 'success', text: 'Logged out successfully' });
+      setTimeout(() => setSyncMessage(null), 3000);
+    } catch (error: any) {
+      setSyncMessage({ type: 'error', text: 'Failed to log out' });
+      setTimeout(() => setSyncMessage(null), 3000);
+    }
+  };
+
   const downloadFile = (content: string, filename: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -150,6 +226,59 @@ export default function App() {
           </div>
         </div>
         <p className="header__subtitle">Web3 Learning Platform</p>
+
+        {/* Auth Section */}
+        <div className="header__auth">
+          {authState.isAuthenticated ? (
+            <div className="auth-status">
+              <span className="auth-status__email">{authState.user?.email}</span>
+              <button 
+                className="auth-status__logout"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button 
+              className="auth-button"
+              onClick={handleLogin}
+            >
+              🔐 Login to Sync
+            </button>
+          )}
+        </div>
+
+        {/* Sync Section */}
+        {authState.isAuthenticated && (
+          <div className="header__sync">
+            <button
+              className={`sync-button ${syncing ? 'sync-button--syncing' : ''}`}
+              onClick={handleSyncClick}
+              disabled={syncing || syncStats.unsyncedCount === 0}
+            >
+              <span className="sync-button__icon">
+                {syncing ? '⟳' : '☁️'}
+              </span>
+              <span className="sync-button__text">
+                {syncing 
+                  ? 'Syncing...' 
+                  : `Sync ${syncStats.unsyncedCount} ${syncStats.unsyncedCount === 1 ? 'item' : 'items'}`
+                }
+              </span>
+            </button>
+            {syncStats.lastSyncTimestamp && (
+              <span className="sync-status">
+                Last synced: {new Date(syncStats.lastSyncTimestamp).toLocaleTimeString()}
+              </span>
+            )}
+            {syncMessage && (
+              <div className={`sync-message sync-message--${syncMessage.type}`}>
+                {syncMessage.text}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Analyze Button */}
         <div className="header__analyze">

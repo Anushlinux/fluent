@@ -14,6 +14,7 @@
     "prepare": "wxt prepare"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.76.1",
     "compromise": "^14.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

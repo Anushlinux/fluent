@@ -4,6 +4,7 @@
  */
 
 export interface GraphNode {
+  [key: string]: unknown;
   id: string;
   type: 'topic' | 'sentence';
   label: string;

@@ -603,11 +603,11 @@ function handleSelectionInteraction(): void {
     }
 
     const selection = window.getSelection();
-    console.log('[Fluent] Selection interaction detected', {
-      hasSelection: !!selection,
-      isCollapsed: selection?.isCollapsed,
-      text: selection?.toString().slice(0, 50)
-    });
+    // console.log('[Fluent] Selection interaction detected', {
+    //   hasSelection: !!selection,
+    //   isCollapsed: selection?.isCollapsed,
+    //   text: selection?.toString().slice(0, 50)
+    // });
 
     if (!selection || selection.isCollapsed) {
       clearSentenceCaptureArtifacts();
