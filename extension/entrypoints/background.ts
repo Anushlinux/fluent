@@ -14,6 +14,7 @@ export default defineBackground({
   chrome.runtime.onInstalled.addListener(() => {
     console.log('[Fluent] Extension installed');
     updateBadge();
+    createContextMenu();
   });
 
   // Update badge when storage changes
@@ -29,10 +30,48 @@ export default defineBackground({
     updateBadge();
   }, 60000);
 
-  // Initial badge update
+  // Initial badge update and context menu creation
   updateBadge();
+  createContextMenu();
   },
 });
+
+/**
+ * Create context menu for sentence capture
+ */
+function createContextMenu(): void {
+  try {
+    // Remove existing menu items first
+    chrome.contextMenus.removeAll(() => {
+      // Create new context menu item
+      chrome.contextMenus.create({
+        id: 'fluent-capture-sentence',
+        title: 'Capture with Fluent',
+        contexts: ['selection'],
+      });
+      
+      console.log('[Fluent] Context menu created');
+    });
+    
+    // Handle context menu clicks
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+      if (info.menuItemId === 'fluent-capture-sentence' && tab?.id) {
+        // Send message to content script to show capture popover
+        chrome.tabs.sendMessage(tab.id, { 
+          action: 'captureSentence'
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[Fluent] Error sending capture message:', chrome.runtime.lastError);
+          } else {
+            console.log('[Fluent] Capture message sent successfully');
+          }
+        });
+      }
+    });
+  } catch (error) {
+    console.error('[Fluent] Failed to create context menu:', error);
+  }
+}
 
 /**
  * Update the extension badge with today's unique terms count

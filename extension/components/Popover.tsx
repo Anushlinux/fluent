@@ -37,7 +37,7 @@ export const Popover: React.FC<PopoverProps> = ({
   definition,
   usage,
   quiz,
-  position,
+  position: _position,
   mode,
   captureCandidateSentence,
   latestCapturedSentence,
@@ -91,11 +91,8 @@ export const Popover: React.FC<PopoverProps> = ({
     }
   };
 
-  // Calculate position to ensure popover stays within viewport
+  // Let the container handle positioning - no inline styles needed
   const style: React.CSSProperties = {
-    position: 'fixed',
-    left: `${Math.min(position.x, window.innerWidth - 320)}px`,
-    top: `${Math.min(position.y + 10, window.innerHeight - 400)}px`,
     zIndex: 2147483647, // Maximum z-index
   };
 

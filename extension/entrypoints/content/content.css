@@ -1,16 +1,13 @@
 /* Highlighted terms */
 .fluent-highlight {
-  text-decoration: underline dotted #667eea;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
+  background-color: transparent;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease;
   position: relative;
 }
 
 .fluent-highlight:hover {
-  background-color: rgba(102, 126, 234, 0.1);
-  text-decoration-color: #5568d3;
+  background-color: rgba(102, 126, 234, 0.08);
 }
 
 .fluent-sentence-highlight {
@@ -20,6 +17,15 @@
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
   position: relative;
+}
+
+/* Sentence highlight overlay (non-DOM-mutating approach) */
+.fluent-sentence-highlight-overlay {
+  pointer-events: none;
+  background: rgba(0, 0, 255, 0.12);
+  border-bottom: 2px solid rgba(0, 0, 255, 0.3);
+  position: absolute;
+  z-index: 2147483646;
 }
 
 .fluent-capture-popover {
@@ -223,6 +229,9 @@
   position: fixed;
   z-index: 2147483647;
   pointer-events: none;
+  margin: 0;
+  padding: 0;
+  transition: opacity 0.15s ease-out;
 }
 
 .fluent-popover-container > * {

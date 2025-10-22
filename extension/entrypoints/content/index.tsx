@@ -27,11 +27,15 @@ interface TermMatch {
 }
 
 let glossary: GlossaryEntry[] = [];
-let currentPopover: { root: ReactDOM.Root; container: HTMLElement } | null = null;
+let currentPopover: { root: ReactDOM.Root; container: HTMLElement; anchorElement?: HTMLElement; scrollListener?: () => void; mouseMoveListener?: ((e: MouseEvent) => void) | null } | null = null;
 let hoverTimeout: number | null = null;
-let currentSentenceHighlight: HTMLElement | null = null;
+let closeTimeout: number | null = null;
+let currentSentenceHighlight: HTMLElement[] = [];
 let capturePopoverElement: HTMLElement | null = null;
 let lastSelectedSentence: string | null = null;
+let isPopoverOpen = false;
+let isClickActive = false;
+let currentRange: Range | null = null;
 
 interface CapturedSentence {
   id: string;
@@ -148,15 +152,17 @@ export default defineContentScript({
           sendResponse({ success: true });
         });
         return true;
+      } else if (message.action === 'captureSentence') {
+        handleCaptureFromContextMenu().then(() => {
+          sendResponse({ success: true });
+        });
+        return true;
       }
     });
 
-    // Initialize selection capture
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeSelectionCapture);
-    } else {
-      initializeSelectionCapture();
-    }
+    // Initialize context menu for sentence capture
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('mousedown', handlePointerDown, true);
   },
 });
 
@@ -412,28 +418,58 @@ function highlightTerm(match: TermMatch): void {
  */
 function addEventListeners(element: HTMLElement, entry: GlossaryEntry): void {
   // Hover to show preview
-  element.addEventListener('mouseenter', (e) => {
-    if (hoverTimeout) {
-      clearTimeout(hoverTimeout);
+  element.addEventListener('mouseenter', (event) => {
+    // Don't show preview if click is active or popover already open
+    if (isClickActive || isPopoverOpen) {
+      return;
     }
     
-    hoverTimeout = window.setTimeout(() => {
-      showPopover(e as MouseEvent, entry, 'preview');
-    }, 300);
-  });
-  
-  element.addEventListener('mouseleave', () => {
     if (hoverTimeout) {
       clearTimeout(hoverTimeout);
       hoverTimeout = null;
     }
     
-    // Hide preview popover after delay
-    setTimeout(() => {
-      if (currentPopover) {
-        hidePopover();
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
+    
+    // Store cursor position before timeout
+    const cursorX = event.clientX;
+    const cursorY = event.clientY;
+    
+    hoverTimeout = window.setTimeout(() => {
+      if (!isClickActive) {
+        // Create a new mouse event with stored coordinates
+        const syntheticEvent = {
+          clientX: cursorX,
+          clientY: cursorY
+        } as MouseEvent;
+        showPopover(element, entry, 'preview', syntheticEvent);
       }
-    }, 200);
+    }, 300);
+  });
+  
+  element.addEventListener('mouseleave', (e) => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+    
+    // Check if mouse is moving to the popover
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget && currentPopover?.container?.contains(relatedTarget)) {
+      return; // Don't close if moving to popover
+    }
+    
+    // Only close preview popover, not full popover
+    if (currentPopover && !isClickActive) {
+      closeTimeout = window.setTimeout(() => {
+        if (!isClickActive) {
+          hidePopover();
+        }
+      }, 150);
+    }
   });
   
   // Click to show full popover with quiz
@@ -446,23 +482,37 @@ function addEventListeners(element: HTMLElement, entry: GlossaryEntry): void {
       hoverTimeout = null;
     }
     
-    showPopover(e as MouseEvent, entry, 'full');
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
+    
+    isClickActive = true;
+    hidePopover();
+    
+    // Small delay to ensure cleanup
+    setTimeout(() => {
+      showPopover(element, entry, 'full', e);
+    }, 10);
   });
 }
 
 /**
- * Show popover at mouse position
+ * Show popover anchored to element
  */
 function showPopover(
-  event: MouseEvent,
+  anchorElement: HTMLElement,
   entry: GlossaryEntry,
-  mode: 'preview' | 'full'
+  mode: 'preview' | 'full',
+  mouseEvent?: MouseEvent
 ): void {
   // Remove existing popover
   hidePopover();
   
+  isPopoverOpen = true;
+  
   // Get context sentence
-  const contextSentence = getContextSentence(event.target as HTMLElement);
+  const contextSentence = getContextSentence(anchorElement);
   
   // Detect context for this specific sentence and page
   const sentenceContext = tagSentence(contextSentence, glossary.map(e => e.term));
@@ -506,6 +556,56 @@ function showPopover(
   container.className = 'fluent-popover-container';
   document.body.appendChild(container);
   
+  // Position container based on anchor element or cursor position
+  if (mode === 'preview' && mouseEvent) {
+    // For hover popups, use smart left/right positioning based on cursor position
+    const cursorX = mouseEvent.clientX || 0;
+    const anchorRect = anchorElement.getBoundingClientRect();
+    
+    container.style.position = 'fixed';
+    container.style.zIndex = '2147483647';
+    container.style.opacity = '0'; // Hide until positioned
+    
+    // Determine if cursor is on left or right half of screen
+    const isLeftSide = cursorX < window.innerWidth / 2;
+    
+    // Wait for multiple frames to ensure layout is complete
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const rect = container.getBoundingClientRect();
+        const viewportPadding = 16;
+        const horizontalGap = 12;
+        
+        let left: number;
+        if (isLeftSide) {
+          left = anchorRect.right + horizontalGap;
+          if (left + rect.width > window.innerWidth - viewportPadding) {
+            left = anchorRect.left - rect.width - horizontalGap;
+          }
+        } else {
+          left = anchorRect.left - rect.width - horizontalGap;
+          if (left < viewportPadding) {
+            left = anchorRect.right + horizontalGap;
+          }
+        }
+        
+        let top = anchorRect.top + (anchorRect.height / 2) - (rect.height / 2);
+        
+        // Clamp to viewport with extra safety margin
+        top = Math.max(viewportPadding, Math.min(top, window.innerHeight - rect.height - viewportPadding));
+        left = Math.max(viewportPadding, Math.min(left, window.innerWidth - rect.width - viewportPadding));
+        
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.opacity = '1'; // Show after positioned
+      });
+    });
+  } else {
+    // For click popups, position relative to element
+    const anchorRect = anchorElement.getBoundingClientRect();
+    positionPopover(container, anchorRect, { preferredSide: 'below', offset: 8 });
+  }
+  
   // Create React root and render popover
   const root = ReactDOM.createRoot(container);
   
@@ -523,7 +623,7 @@ function showPopover(
       definition={definition}
       usage={usage}
       quiz={entry.quiz}
-      position={{ x: event.clientX, y: event.clientY }}
+      position={{ x: 0, y: 0 }}
       mode={mode}
       captureCandidateSentence={captureCandidate || null}
       latestCapturedSentence={latestCapturedSentenceEntry}
@@ -535,7 +635,51 @@ function showPopover(
     />
   );
   
-  currentPopover = { root, container };
+  // Add mouseenter/mouseleave to popover to keep it open when hovering
+  container.addEventListener('mouseenter', () => {
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+  });
+  
+  container.addEventListener('mouseleave', (e: MouseEvent) => {
+    if (!isClickActive && mode === 'preview') {
+      // Check if mouse is moving to the anchor element
+      const relatedTarget = e.relatedTarget as HTMLElement;
+      if (relatedTarget && currentPopover?.anchorElement?.contains(relatedTarget)) {
+        return; // Don't close if moving back to word
+      }
+      
+      closeTimeout = window.setTimeout(() => {
+        if (!isClickActive) {
+          hidePopover();
+        }
+      }, 150);
+    }
+  });
+  
+  // Set up scroll listener to reposition
+  const scrollListener = () => {
+    if (container.parentElement) {
+      if (mode === 'preview' && mouseEvent) {
+        // For hover popups, just close on scroll to avoid confusion
+        hidePopover();
+      } else {
+        // For click popups, reposition relative to element
+        const rect = anchorElement.getBoundingClientRect();
+        positionPopover(container, rect, { preferredSide: 'below', offset: 8 });
+      }
+    }
+  };
+  
+  window.addEventListener('scroll', scrollListener, true);
+  
+  currentPopover = { root, container, anchorElement, scrollListener, mouseMoveListener: null };
   
   // Close on outside click (for full mode)
   if (mode === 'full') {
@@ -549,11 +693,45 @@ function showPopover(
  * Hide current popover
  */
 function hidePopover(): void {
-  if (currentPopover) {
+  if (!currentPopover || !isPopoverOpen) {
+    return;
+  }
+  
+  isPopoverOpen = false;
+  
+  try {
+    // Remove scroll listener
+    if (currentPopover.scrollListener) {
+      window.removeEventListener('scroll', currentPopover.scrollListener, true);
+    }
+    
+    // Remove mouse move listener
+    if (currentPopover.mouseMoveListener) {
+      document.removeEventListener('mousemove', currentPopover.mouseMoveListener);
+    }
+    
+    // Unmount React component
     currentPopover.root.unmount();
-    currentPopover.container.remove();
+    
+    // Remove DOM element
+    if (currentPopover.container.parentElement) {
+      currentPopover.container.remove();
+    }
+  } catch (error) {
+    console.error('[Fluent] Error cleaning up popover:', error);
+  } finally {
     currentPopover = null;
     document.removeEventListener('click', handleOutsideClick);
+    
+    // Clear timeouts
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
   }
 }
 
@@ -567,8 +745,63 @@ function handleOutsideClick(event: MouseEvent): void {
     !target.closest('.fluent-popover') &&
     !target.closest('.fluent-highlight')
   ) {
+    isClickActive = false;
     hidePopover();
   }
+}
+
+interface PopoverPositionOptions {
+  preferredSide?: 'below' | 'above';
+  offset?: number;
+}
+
+function positionPopover(
+  popoverElement: HTMLElement,
+  anchorRect: DOMRect,
+  _options: PopoverPositionOptions = {}
+): void {
+  
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const popoverRect = popoverElement.getBoundingClientRect();
+      const viewportPadding = 16;
+      const horizontalGap = 12;
+      
+      // Determine if word is on left or right half of screen
+      const wordCenterX = anchorRect.left + (anchorRect.width / 2);
+      const isLeftSide = wordCenterX < window.innerWidth / 2;
+      
+      // Calculate horizontal position
+      let left: number;
+      if (isLeftSide) {
+        // Position to the right of the word
+        left = anchorRect.right + horizontalGap;
+        if (left + popoverRect.width > window.innerWidth - viewportPadding) {
+          left = anchorRect.left - popoverRect.width - horizontalGap;
+        }
+      } else {
+        // Position to the left of the word
+        left = anchorRect.left - popoverRect.width - horizontalGap;
+        if (left < viewportPadding) {
+          left = anchorRect.right + horizontalGap;
+        }
+      }
+      
+      // Vertically center with the word
+      let top = anchorRect.top + (anchorRect.height / 2) - (popoverRect.height / 2);
+      
+      // Clamp to viewport
+      top = Math.max(viewportPadding, Math.min(top, window.innerHeight - popoverRect.height - viewportPadding));
+      left = Math.max(viewportPadding, Math.min(left, window.innerWidth - popoverRect.width - viewportPadding));
+      
+      // Apply positioning
+      popoverElement.style.position = 'fixed';
+      popoverElement.style.top = `${top}px`;
+      popoverElement.style.left = `${left}px`;
+      popoverElement.style.margin = '0';
+      popoverElement.style.transform = 'none';
+    });
+  });
 }
 
 /**
@@ -587,64 +820,69 @@ function getContextSentence(element: HTMLElement): string {
   return sentence?.trim() || text.slice(0, 150);
 }
 
-function initializeSelectionCapture(): void {
-  console.log('[Fluent] Initializing selection capture listeners');
-  document.addEventListener('mouseup', handleSelectionInteraction);
-  document.addEventListener('keyup', handleSelectionInteraction);
-  document.addEventListener('mousedown', handlePointerDown, true);
-  document.addEventListener('scroll', handleScroll, true);
+/**
+ * Handle context menu (right-click) events
+ */
+function handleContextMenu(): void {
+  const selection = window.getSelection();
+  
+  if (!selection || selection.isCollapsed) {
+    clearSentenceCaptureArtifacts();
+    return;
+  }
+  
+  if (isSelectionInsideExtension(selection)) {
+    return;
+  }
+  
+  // Store the selection range for later use
+  if (selection.rangeCount > 0) {
+    currentRange = selection.getRangeAt(0).cloneRange();
+  }
+  
+  // The context menu will be shown by the browser
+  // Background script will handle the menu click and send message
 }
 
-function handleSelectionInteraction(): void {
-  setTimeout(() => {
-    if (!hasExtensionContext()) {
-      console.warn('[Fluent] Extension context invalidated - ignoring selection');
-      return;
-    }
-
-    const selection = window.getSelection();
-    // console.log('[Fluent] Selection interaction detected', {
-    //   hasSelection: !!selection,
-    //   isCollapsed: selection?.isCollapsed,
-    //   text: selection?.toString().slice(0, 50)
-    // });
-
-    if (!selection || selection.isCollapsed) {
-      clearSentenceCaptureArtifacts();
-      return;
-    }
-
-    if (isSelectionInsideExtension(selection)) {
-      console.log('[Fluent] Selection is inside extension, ignoring');
-      return;
-    }
-
-    const extraction = extractSentenceFromSelection(selection);
-    if (!extraction) {
-      console.log('[Fluent] Failed to extract sentence from selection');
-      clearSentenceCaptureArtifacts();
-      return;
-    }
-
-    const { sentence, range, root } = extraction;
-
-    if (!sentence) {
-      console.log('[Fluent] Extracted sentence is empty');
-      clearSentenceCaptureArtifacts();
-      return;
-    }
-
-    console.log('[Fluent] Successfully extracted sentence:', sentence.slice(0, 100));
-    
-    // Tag the sentence with terms and context
-    const glossaryTerms = glossary.map(entry => entry.term);
-    const tagResult = tagSentence(sentence, glossaryTerms);
-    console.log('[Fluent] Tagged sentence:', tagResult);
-    
-    highlightSentenceRange(range);
-    showCapturePopover(range, root, sentence, tagResult);
-    lastSelectedSentence = sentence;
-  }, 0);
+/**
+ * Handle capture request from context menu
+ */
+async function handleCaptureFromContextMenu(): Promise<void> {
+  if (!currentRange) {
+    console.warn('[Fluent] No selection range stored');
+    return;
+  }
+  
+  if (!hasExtensionContext()) {
+    console.warn('[Fluent] Extension context invalidated - ignoring capture request');
+    return;
+  }
+  
+  const extraction = extractSentenceFromRange(currentRange);
+  if (!extraction) {
+    console.log('[Fluent] Failed to extract sentence from stored range');
+    clearSentenceCaptureArtifacts();
+    return;
+  }
+  
+  const { sentence, range, root } = extraction;
+  
+  if (!sentence) {
+    console.log('[Fluent] Extracted sentence is empty');
+    clearSentenceCaptureArtifacts();
+    return;
+  }
+  
+  console.log('[Fluent] Successfully extracted sentence:', sentence.slice(0, 100));
+  
+  // Tag the sentence with terms and context
+  const glossaryTerms = glossary.map(entry => entry.term);
+  const tagResult = tagSentence(sentence, glossaryTerms);
+  console.log('[Fluent] Tagged sentence:', tagResult);
+  
+  highlightSentenceRange(range);
+  showCapturePopover(range, root, sentence, tagResult);
+  lastSelectedSentence = sentence;
 }
 
 function handlePointerDown(event: MouseEvent): void {
@@ -653,24 +891,14 @@ function handlePointerDown(event: MouseEvent): void {
     return;
   }
 
-  if (currentSentenceHighlight && target && currentSentenceHighlight.contains(target as Node)) {
-    return;
+  // Check if clicking on any sentence highlight overlay
+  if (currentSentenceHighlight.length > 0 && target instanceof HTMLElement) {
+    if (currentSentenceHighlight.some(el => el.contains(target))) {
+      return;
+    }
   }
 
   clearSentenceCaptureArtifacts();
-}
-
-function handleScroll(): void {
-  if (capturePopoverElement && currentSentenceHighlight) {
-    // Reposition using the highlight element
-    requestAnimationFrame(() => {
-      if (currentSentenceHighlight) {
-        const range = document.createRange();
-        range.selectNodeContents(currentSentenceHighlight);
-        positionCapturePopover(range);
-      }
-    });
-  }
 }
 
 function isSelectionInsideExtension(selection: Selection): boolean {
@@ -702,12 +930,7 @@ interface SentenceExtraction {
   root: HTMLElement;
 }
 
-function extractSentenceFromSelection(selection: Selection): SentenceExtraction | null {
-  if (selection.rangeCount === 0) {
-    return null;
-  }
-
-  const range = selection.getRangeAt(0);
+function extractSentenceFromRange(range: Range): SentenceExtraction | null {
   if (range.collapsed) {
     return null;
   }
@@ -862,29 +1085,56 @@ function highlightSentenceRange(range: Range): void {
     return;
   }
 
-  const highlightWrapper = document.createElement('span');
-  highlightWrapper.className = 'fluent-sentence-highlight';
-
-  try {
-    // Try the simple approach first
-    const clonedRange = range.cloneRange();
-    clonedRange.surroundContents(highlightWrapper);
-    currentSentenceHighlight = highlightWrapper;
-    console.log('[Fluent] Successfully highlighted sentence with surroundContents');
-  } catch (error) {
-    // Fallback: Use extractContents and reinsert for complex ranges
-    console.log('[Fluent] surroundContents failed, using fallback method');
-    try {
-      const contents = range.extractContents();
-      highlightWrapper.appendChild(contents);
-      range.insertNode(highlightWrapper);
-      currentSentenceHighlight = highlightWrapper;
-      console.log('[Fluent] Successfully highlighted sentence with fallback method');
-    } catch (fallbackError) {
-      console.error('[Fluent] Failed to highlight sentence:', fallbackError);
-      removeSentenceHighlight();
-    }
+  // Use overlay divs instead of DOM manipulation to avoid corruption
+  const rects = range.getClientRects();
+  
+  if (rects.length === 0) {
+    console.warn('[Fluent] No rects found for range');
+    return;
   }
+
+  // Create overlay for each rect (handles multi-line selections)
+  for (let i = 0; i < rects.length; i++) {
+    const rect = rects[i];
+    
+    // Skip tiny rects (often line breaks)
+    if (rect.width < 2 || rect.height < 2) {
+      continue;
+    }
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'fluent-sentence-highlight-overlay';
+    overlay.style.position = 'absolute';
+    overlay.style.left = `${rect.left + window.scrollX}px`;
+    overlay.style.top = `${rect.top + window.scrollY}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '2147483646';
+    overlay.style.background = 'rgba(0, 0, 255, 0.12)';
+    overlay.style.borderBottom = '2px solid rgba(0, 0, 255, 0.3)';
+    
+    document.body.appendChild(overlay);
+    currentSentenceHighlight.push(overlay);
+  }
+  
+  // Set up scroll listener to update positions
+  const updatePositions = () => {
+    if (currentSentenceHighlight.length > 0) {
+      const newRects = range.getClientRects();
+      for (let i = 0; i < Math.min(currentSentenceHighlight.length, newRects.length); i++) {
+        const rect = newRects[i];
+        const overlay = currentSentenceHighlight[i];
+        overlay.style.left = `${rect.left + window.scrollX}px`;
+        overlay.style.top = `${rect.top + window.scrollY}px`;
+      }
+    }
+  };
+  
+  window.addEventListener('scroll', updatePositions, true);
+  window.addEventListener('resize', updatePositions);
+  
+  console.log(`[Fluent] Created ${currentSentenceHighlight.length} highlight overlays`);
 }
 
 function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): void {
@@ -1053,71 +1303,25 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, 
   // Wait for next frame to ensure layout is complete before positioning
   requestAnimationFrame(() => {
     // Use highlight element for positioning if available (more reliable after DOM changes)
-    if (currentSentenceHighlight) {
-      const highlightRange = document.createRange();
-      highlightRange.selectNodeContents(currentSentenceHighlight);
-      positionCapturePopover(highlightRange);
+    if (currentSentenceHighlight.length > 0) {
+      const firstOverlay = currentSentenceHighlight[0];
+      const anchorRect = firstOverlay.getBoundingClientRect();
+      positionPopover(capturePopoverElement!, anchorRect, { preferredSide: 'below', offset: 8 });
     } else {
-      positionCapturePopover(range);
+      const anchorRect = range.getBoundingClientRect();
+      positionPopover(capturePopoverElement!, anchorRect, { preferredSide: 'below', offset: 8 });
     }
   });
 }
 
-function positionCapturePopover(range?: Range): void {
-  if (!capturePopoverElement) {
+function repositionCapturePopover(): void {
+  if (!capturePopoverElement || currentSentenceHighlight.length === 0) {
     return;
   }
-
-  let referenceRange = range;
-  if (!referenceRange && currentSentenceHighlight) {
-    referenceRange = document.createRange();
-    referenceRange.selectNodeContents(currentSentenceHighlight);
-  }
-
-  if (!referenceRange) {
-    console.log('[Fluent] No reference range for positioning');
-    return;
-  }
-
-  try {
-    const rect = referenceRange.getBoundingClientRect();
-    const popoverWidth = capturePopoverElement.offsetWidth || 320; // fallback to max-width
-    const popoverHeight = capturePopoverElement.offsetHeight || 100;
-    const viewportPadding = 12;
-
-    // Calculate vertical position (prefer below, but go above if not enough space)
-    let top = rect.bottom + window.scrollY + viewportPadding;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-
-    if (spaceBelow < popoverHeight + viewportPadding && spaceAbove > spaceBelow) {
-      // Position above if more space there
-      top = rect.top + window.scrollY - popoverHeight - viewportPadding;
-    }
-
-    // Calculate horizontal position (keep within viewport)
-    let left = rect.left + window.scrollX;
-    
-    // Ensure popover doesn't overflow right edge
-    const maxLeft = window.scrollX + window.innerWidth - popoverWidth - viewportPadding;
-    if (left > maxLeft) {
-      left = maxLeft;
-    }
-    
-    // Ensure popover doesn't overflow left edge
-    const minLeft = window.scrollX + viewportPadding;
-    if (left < minLeft) {
-      left = minLeft;
-    }
-
-    // Apply with smooth constraints
-    capturePopoverElement.style.top = `${Math.max(top, window.scrollY + viewportPadding)}px`;
-    capturePopoverElement.style.left = `${left}px`;
-
-    // console.log('[Fluent] Positioned popover at', { top, left, rect, popoverWidth, popoverHeight });
-  } catch (error) {
-    console.error('[Fluent] Error positioning popover:', error);
-  }
+  
+  const firstOverlay = currentSentenceHighlight[0];
+  const anchorRect = firstOverlay.getBoundingClientRect();
+  positionPopover(capturePopoverElement, anchorRect, { preferredSide: 'below', offset: 8 });
 }
 
 async function storeCapturedSentence(sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): Promise<void> {
@@ -1178,22 +1382,18 @@ function removeCapturePopover(): void {
 }
 
 function removeSentenceHighlight(): void {
-  if (!currentSentenceHighlight) {
+  if (currentSentenceHighlight.length === 0) {
     return;
   }
 
-  const parent = currentSentenceHighlight.parentNode;
-  if (!parent) {
-    currentSentenceHighlight = null;
-    return;
-  }
+  // Remove all overlay elements
+  currentSentenceHighlight.forEach(overlay => {
+    if (overlay.parentElement) {
+      overlay.remove();
+    }
+  });
 
-  while (currentSentenceHighlight.firstChild) {
-    parent.insertBefore(currentSentenceHighlight.firstChild, currentSentenceHighlight);
-  }
-
-  parent.removeChild(currentSentenceHighlight);
-  currentSentenceHighlight = null;
+  currentSentenceHighlight = [];
 }
 
 /**

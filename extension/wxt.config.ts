@@ -6,7 +6,7 @@ export default defineConfig({
     name: 'Fluent',
     description: 'Educational browser extension that annotates Web3 jargon terms',
     version: '0.1.0',
-    permissions: ['storage', 'activeTab', 'scripting'],
+    permissions: ['storage', 'activeTab', 'scripting', 'contextMenus'],
     host_permissions: ['<all_urls>'],
     web_accessible_resources: [
       {
