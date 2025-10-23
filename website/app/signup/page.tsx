@@ -47,20 +47,34 @@ export default function SignupPage() {
 
       if (data.user) {
         setSuccess(true);
+        
+        // Create profile record
+        if (data.user.id) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([{ id: data.user.id, email: data.user.email }]);
+          
+          if (profileError) {
+            console.error('Failed to create profile:', profileError);
+          }
+        }
+        
         // Auto-login if email confirmation is disabled
         if (data.session) {
           // Send session to extension if it's installed
-          window.postMessage(
-            {
-              type: 'FLUENT_AUTH_SUCCESS',
-              session: {
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token,
-                user: data.session.user,
+          if (typeof window !== 'undefined') {
+            window.postMessage(
+              {
+                type: 'FLUENT_AUTH_SUCCESS',
+                session: {
+                  access_token: data.session.access_token,
+                  refresh_token: data.session.refresh_token,
+                  user: data.session.user,
+                },
               },
-            },
-            '*'
-          );
+              window.location.origin // Send to same origin
+            );
+          }
 
           router.push('/');
           router.refresh();

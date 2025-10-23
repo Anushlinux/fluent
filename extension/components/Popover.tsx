@@ -25,7 +25,7 @@ export interface PopoverProps {
   mode: 'preview' | 'full';
   captureCandidateSentence?: string | null;
   latestCapturedSentence?: CapturedSentence | null;
-  onCaptureSentence?: () => Promise<void> | void;
+  onCaptureSentence?: () => Promise<boolean> | boolean;
   onQuizAnswer?: (correct: boolean) => void;
   onClose?: () => void;
   sources?: string[];
@@ -52,6 +52,7 @@ export const Popover: React.FC<PopoverProps> = ({
   const [feedback, setFeedback] = useState<{ correct: boolean; message: string } | null>(null);
 
   const [isCapturing, setIsCapturing] = useState(false);
+  const [captureStatus, setCaptureStatus] = useState<'idle' | 'capturing' | 'success' | 'error'>('idle');
 
   const handleAnswerSelect = (index: number) => {
     setSelectedAnswer(index);
@@ -85,7 +86,15 @@ export const Popover: React.FC<PopoverProps> = ({
 
     try {
       setIsCapturing(true);
-      await onCaptureSentence();
+      setCaptureStatus('capturing');
+      const success = await onCaptureSentence();
+      if (success === true) {
+        setCaptureStatus('success');
+      } else {
+        setCaptureStatus('error');
+      }
+    } catch (error) {
+      setCaptureStatus('error');
     } finally {
       setIsCapturing(false);
     }
@@ -128,9 +137,19 @@ export const Popover: React.FC<PopoverProps> = ({
             <button
               className="fluent-popover__capture-button"
               onClick={handleCaptureSentence}
-              disabled={isCapturing}
+              disabled={isCapturing || captureStatus === 'success'}
+              style={{
+                background: captureStatus === 'success' 
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                  : captureStatus === 'error'
+                  ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                  : undefined
+              }}
             >
-              {isCapturing ? 'Capturing…' : 'Capture Sentence'}
+              {captureStatus === 'capturing' && 'Saving…'}
+              {captureStatus === 'success' && '✓ Saved!'}
+              {captureStatus === 'error' && 'Retry'}
+              {captureStatus === 'idle' && 'Capture Sentence'}
             </button>
           </div>
         )}

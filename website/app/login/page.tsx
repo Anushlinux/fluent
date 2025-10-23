@@ -27,18 +27,38 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.session) {
+        // Check if profile exists, create if not
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.session.user.id)
+          .single();
+        
+        if (!existingProfile) {
+          // Create profile if it doesn't exist
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([{ id: data.session.user.id, email: data.session.user.email }]);
+          
+          if (profileError) {
+            console.error('Failed to create profile:', profileError);
+          }
+        }
+
         // Send session to extension if it's installed
-        window.postMessage(
-          {
-            type: 'FLUENT_AUTH_SUCCESS',
-            session: {
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-              user: data.session.user,
+        if (typeof window !== 'undefined') {
+          window.postMessage(
+            {
+              type: 'FLUENT_AUTH_SUCCESS',
+              session: {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+                user: data.session.user,
+              },
             },
-          },
-          '*'
-        );
+            window.location.origin // Send to same origin
+          );
+        }
 
         // Redirect to main page
         router.push('/');

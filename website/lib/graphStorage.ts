@@ -4,7 +4,8 @@
  */
 
 import { getSupabaseBrowserClient } from './supabase';
-import type { GraphData, GraphNode, GraphEdge } from './graphTypes';
+import type { GraphData, GraphNode, GraphEdge, CapturedSentence } from './graphTypes';
+import { processSentencesIntoGraph, processNewSentencesIncremental } from './graphProcessor';
 
 /**
  * Save graph data to Supabase
@@ -289,23 +290,232 @@ export async function hasGraphData(): Promise<boolean> {
 }
 
 /**
+ * Fetch all captured sentences for current user
+ */
+export async function getCapturedSentences(): Promise<CapturedSentence[]> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return [];
+    }
+
+    // Fetch sentences
+    const { data, error } = await supabase
+      .from('captured_sentences')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('timestamp', { ascending: true });
+
+    if (error) {
+      console.error('[Graph Storage] Failed to fetch sentences:', error.message);
+      throw new Error(`Failed to fetch sentences: ${error.message}`);
+    }
+
+    // Transform to CapturedSentence format
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      sentence: row.sentence,
+      terms: row.terms || [],
+      context: row.context,
+      framework: row.framework,
+      secondaryContext: row.secondary_context,
+      confidence: row.confidence || 0,
+      timestamp: row.timestamp,
+    }));
+  } catch (error) {
+    console.error('[Graph Storage] Failed to get sentences:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch sentences newer than a specific timestamp (for incremental updates)
+ */
+export async function getNewCapturedSentences(since: string): Promise<CapturedSentence[]> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return [];
+    }
+
+    // Fetch new sentences
+    const { data, error } = await supabase
+      .from('captured_sentences')
+      .select('*')
+      .eq('user_id', user.id)
+      .gt('timestamp', since)
+      .order('timestamp', { ascending: true });
+
+    if (error) {
+      console.error('[Graph Storage] Failed to fetch new sentences:', error.message);
+      throw new Error(`Failed to fetch new sentences: ${error.message}`);
+    }
+
+    // Transform to CapturedSentence format
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      sentence: row.sentence,
+      terms: row.terms || [],
+      context: row.context,
+      framework: row.framework,
+      secondaryContext: row.secondary_context,
+      confidence: row.confidence || 0,
+      timestamp: row.timestamp,
+    }));
+  } catch (error) {
+    console.error('[Graph Storage] Failed to get new sentences:', error);
+    return [];
+  }
+}
+
+/**
+ * Get timestamp of last processed sentence
+ * Stores in browser localStorage for persistence
+ */
+export async function getLastProcessedTimestamp(): Promise<string | null> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return null;
+    
+    // Use localStorage with user-specific key
+    const key = `fluent_last_processed_${user.id}`;
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error('[Graph Storage] Failed to get last processed timestamp:', error);
+    return null;
+  }
+}
+
+/**
+ * Update last processed timestamp
+ */
+export async function setLastProcessedTimestamp(timestamp: string): Promise<void> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return;
+    
+    // Store in localStorage with user-specific key
+    const key = `fluent_last_processed_${user.id}`;
+    localStorage.setItem(key, timestamp);
+    
+    console.log('[Graph Storage] Updated last processed timestamp:', timestamp);
+  } catch (error) {
+    console.error('[Graph Storage] Failed to set last processed timestamp:', error);
+  }
+}
+
+/**
+ * Process and save new sentences to graph
+ * This is the main function that orchestrates incremental updates
+ */
+export async function processAndSaveNewSentences(): Promise<void> {
+  try {
+    console.log('[Graph Storage] Starting incremental processing...');
+    
+    // Get last processed timestamp
+    const lastProcessed = await getLastProcessedTimestamp();
+    
+    // Fetch new sentences
+    const newSentences = lastProcessed
+      ? await getNewCapturedSentences(lastProcessed)
+      : await getCapturedSentences(); // First time: process all
+    
+    if (newSentences.length === 0) {
+      console.log('[Graph Storage] No new sentences to process');
+      return;
+    }
+    
+    console.log(`[Graph Storage] Processing ${newSentences.length} new sentences`);
+    
+    // Check if this is first-time processing or incremental
+    const existingData = await getGraphData();
+    
+    if (!existingData || !lastProcessed) {
+      // First-time processing: process all sentences and save
+      const graphData = processSentencesIntoGraph(newSentences);
+      await saveGraphData(graphData);
+      
+      // Update last processed timestamp to the latest sentence
+      const latestTimestamp = newSentences[newSentences.length - 1].timestamp;
+      await setLastProcessedTimestamp(latestTimestamp);
+      
+      console.log('[Graph Storage] Initial processing complete');
+    } else {
+      // Incremental processing: fetch existing sentences for edge calculation
+      const allSentences = await getCapturedSentences();
+      const existingSentences = allSentences.filter(
+        s => !newSentences.find(ns => ns.id === s.id)
+      );
+      
+      // Process only new sentences with edges to existing ones
+      const newGraphData = processNewSentencesIncremental(newSentences, existingSentences);
+      
+      // Merge with existing graph data
+      await mergeGraphData(newGraphData);
+      
+      // Update last processed timestamp to the latest new sentence
+      const latestTimestamp = newSentences[newSentences.length - 1].timestamp;
+      await setLastProcessedTimestamp(latestTimestamp);
+      
+      console.log('[Graph Storage] Incremental processing complete');
+    }
+  } catch (error) {
+    console.error('[Graph Storage] Failed to process new sentences:', error);
+    
+    // Fallback: try full rebuild
+    try {
+      console.log('[Graph Storage] Attempting full rebuild...');
+      const allSentences = await getCapturedSentences();
+      const graphData = processSentencesIntoGraph(allSentences);
+      await saveGraphData(graphData);
+      
+      if (allSentences.length > 0) {
+        const latestTimestamp = allSentences[allSentences.length - 1].timestamp;
+        await setLastProcessedTimestamp(latestTimestamp);
+      }
+      
+      console.log('[Graph Storage] Full rebuild successful');
+    } catch (rebuildError) {
+      console.error('[Graph Storage] Full rebuild also failed:', rebuildError);
+      throw rebuildError;
+    }
+  }
+}
+
+/**
  * Subscribe to real-time graph updates
+ * Listens to captured_sentences table and processes new sentences automatically
  */
 export function subscribeToGraphUpdates(callback: (data: GraphData) => void) {
   const supabase = getSupabaseBrowserClient();
   
-  // Subscribe to node changes
-  const nodesChannel = supabase
-    .channel('graph_nodes_changes')
+  // Subscribe to captured_sentences changes
+  const sentencesChannel = supabase
+    .channel('captured_sentences_changes')
     .on(
       'postgres_changes',
       {
-        event: '*',
+        event: 'INSERT',
         schema: 'public',
-        table: 'graph_nodes',
+        table: 'captured_sentences',
       },
       async () => {
-        // Reload graph data when changes occur
+        console.log('[Graph Storage] New sentence detected, processing...');
+        
+        // Process new sentences and update graph
+        await processAndSaveNewSentences();
+        
+        // Reload and callback with updated graph data
         const data = await getGraphData();
         if (data) {
           callback(data);
@@ -316,7 +526,7 @@ export function subscribeToGraphUpdates(callback: (data: GraphData) => void) {
 
   // Return unsubscribe function
   return () => {
-    supabase.removeChannel(nodesChannel);
+    supabase.removeChannel(sentencesChannel);
   };
 }
 

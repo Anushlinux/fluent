@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraphData } from '@/lib/graphTypes';
-import { getGraphData, saveGraphData, subscribeToGraphUpdates } from '@/lib/graphStorage';
+import { getGraphData, saveGraphData, subscribeToGraphUpdates, getCapturedSentences, processAndSaveNewSentences } from '@/lib/graphStorage';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import GraphViewer from '@/components/GraphViewer';
 import QueryControls from '@/components/QueryControls';
@@ -78,10 +78,33 @@ export default function Home() {
   };
 
   const loadSavedData = async () => {
-    const data = await getGraphData();
-    if (data) {
-      setGraphData(data);
-      setFilteredData(data);
+    try {
+      // Try to load existing graph data
+      const data = await getGraphData();
+      
+      if (data) {
+        setGraphData(data);
+        setFilteredData(data);
+      } else {
+        // No graph data found, check if there are captured sentences to process
+        const sentences = await getCapturedSentences();
+        
+        if (sentences.length > 0) {
+          console.log(`[Fluent] Found ${sentences.length} unprocessed sentences, processing...`);
+          
+          // Process sentences into graph data
+          await processAndSaveNewSentences();
+          
+          // Load the newly created graph data
+          const newData = await getGraphData();
+          if (newData) {
+            setGraphData(newData);
+            setFilteredData(newData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Fluent] Error loading data:', error);
     }
   };
 

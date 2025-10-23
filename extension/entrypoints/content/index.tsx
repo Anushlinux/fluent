@@ -52,6 +52,7 @@ let latestCapturedSentenceEntry: CapturedSentence | null = null;
 let analysisActive: boolean = false;
 let analyzing: boolean = false;
 let pageContext: string = 'General';
+let currentToast: HTMLElement | null = null;
 
 const SENTENCE_BOUNDARY_REGEX = /[.!?]/;
 const SENTENCE_CHAR_LIMIT = 100;
@@ -71,47 +72,7 @@ const getExtensionStorage = (): typeof chrome.storage | undefined => {
   return undefined;
 };
 
-const storageGet = async <T = unknown>(key: string): Promise<T | undefined> => {
-  const storage = getExtensionStorage();
-  if (!storage?.local) {
-    return undefined;
-  }
-
-  return new Promise<T | undefined>((resolve, reject) => {
-    try {
-      storage.local.get(key, (result) => {
-        if (chrome.runtime?.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        resolve(result?.[key] as T | undefined);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
-const storageSet = async (value: Record<string, unknown>): Promise<void> => {
-  const storage = getExtensionStorage();
-  if (!storage?.local) {
-    throw new Error('Storage API unavailable');
-  }
-
-  return new Promise<void>((resolve, reject) => {
-    try {
-      storage.local.set(value, () => {
-        if (chrome.runtime?.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        resolve();
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
+// Storage functions removed - using immediate sync to Supabase instead
 
 const hasExtensionContext = (): boolean => {
   const runtime = chrome?.runtime?.id || (browser as typeof chrome | undefined)?.runtime?.id;
@@ -163,6 +124,27 @@ export default defineContentScript({
     // Initialize context menu for sentence capture
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('mousedown', handlePointerDown, true);
+
+    // Listen for auth messages from website
+    window.addEventListener('message', async (event) => {
+      const websiteUrl = import.meta.env.VITE_WEBSITE_URL || 'http://localhost:3001';
+      
+      // Validate origin for security
+      if (!event.origin.startsWith(websiteUrl)) {
+        return;
+      }
+      
+      // Check for auth success message
+      if (event.data.type === 'FLUENT_AUTH_SUCCESS' && event.data.session) {
+        console.log('[Fluent Content] Received auth message from website');
+        
+        // Forward to background script
+        chrome.runtime.sendMessage({
+          action: 'setAuthSession',
+          session: event.data.session,
+        });
+      }
+    });
   },
 });
 
@@ -547,7 +529,8 @@ function showPopover(
     ? async () => {
         const glossaryTerms = glossary.map(e => e.term);
         const tagResult = tagSentence(captureCandidate, glossaryTerms);
-        await storeCapturedSentence(captureCandidate, tagResult);
+        const result = await storeCapturedSentence(captureCandidate, tagResult);
+        return result.success;
       }
     : undefined;
   
@@ -1273,6 +1256,10 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, 
       return;
     }
 
+    // Update button to show loading state
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Saving...';
+
     // Get edited values
     const editedTagResult = {
       terms: tagResult.terms,
@@ -1282,13 +1269,19 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, 
       confidence: tagResult.confidence
     };
 
-    await storeCapturedSentence(sentence, editedTagResult);
-    popover.classList.add('fluent-capture-popover--captured');
-    confirmButton.disabled = true;
-    confirmButton.textContent = 'Saved ✓';
-    setTimeout(() => {
-      clearSentenceCaptureArtifacts();
-    }, 800);
+    const result = await storeCapturedSentence(sentence, editedTagResult);
+    
+    if (result.success) {
+      popover.classList.add('fluent-capture-popover--captured');
+      confirmButton.textContent = 'Saved ✓';
+      setTimeout(() => {
+        clearSentenceCaptureArtifacts();
+      }, 1000);
+    } else {
+      confirmButton.disabled = false;
+      confirmButton.textContent = 'Retry';
+      confirmButton.style.background = '#ef4444';
+    }
   });
 
   actions.appendChild(confirmButton);
@@ -1314,26 +1307,14 @@ function showCapturePopover(range: Range, _root: HTMLElement, sentence: string, 
   });
 }
 
-function repositionCapturePopover(): void {
-  if (!capturePopoverElement || currentSentenceHighlight.length === 0) {
-    return;
-  }
-  
-  const firstOverlay = currentSentenceHighlight[0];
-  const anchorRect = firstOverlay.getBoundingClientRect();
-  positionPopover(capturePopoverElement, anchorRect, { preferredSide: 'below', offset: 8 });
-}
-
-async function storeCapturedSentence(sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): Promise<void> {
+async function storeCapturedSentence(sentence: string, tagResult: { terms: string[]; context: string; framework?: string; secondaryContext?: string; confidence: number }): Promise<{ success: boolean; error?: string }> {
   try {
     if (!hasExtensionContext()) {
       console.warn('[Fluent] Extension context invalidated - cannot store sentence. Please refresh the page.');
-      return;
+      return { success: false, error: 'Extension context invalidated. Please refresh the page.' };
     }
 
-    const existingLog = await storageGet<CapturedSentence[]>('fluentSentenceLog');
-    const log = Array.isArray(existingLog) ? [...existingLog] : [];
-
+    // Create sentence entry
     const entry: CapturedSentence = {
       id: uuidv4(),
       sentence,
@@ -1345,10 +1326,7 @@ async function storeCapturedSentence(sentence: string, tagResult: { terms: strin
       timestamp: new Date().toISOString(),
     };
 
-    log.push(entry);
-    await storageSet({ fluentSentenceLog: log });
-
-    console.log('[Fluent] Captured Sentence with Tags:', {
+    console.log('[Fluent] Capturing Sentence with Tags:', {
       sentence: sentence.slice(0, 100) + (sentence.length > 100 ? '...' : ''),
       terms: tagResult.terms,
       context: tagResult.context,
@@ -1356,15 +1334,26 @@ async function storeCapturedSentence(sentence: string, tagResult: { terms: strin
       secondaryContext: tagResult.secondaryContext,
       confidence: tagResult.confidence
     });
-    
-    latestCapturedSentenceEntry = entry;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Extension context invalidated')) {
-      console.warn('[Fluent] Extension context invalidated - cannot store sentence. Please refresh the page to restore functionality.');
-      return;
-    }
 
-    console.error('[Fluent] Failed to store captured sentence:', error);
+    // Import and use immediate sync
+    const { syncSentenceImmediately } = await import('../../utils/syncService');
+    const syncResult = await syncSentenceImmediately(entry);
+
+    if (syncResult.success) {
+      console.log('[Fluent] Sentence synced to database successfully');
+      latestCapturedSentenceEntry = entry;
+      showToastNotification('success', 'Sentence captured and synced!');
+      return { success: true };
+    } else {
+      console.error('[Fluent] Failed to sync sentence:', syncResult.error);
+      showToastNotification('error', syncResult.error || 'Failed to sync sentence');
+      return { success: false, error: syncResult.error };
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('[Fluent] Failed to capture sentence:', error);
+    showToastNotification('error', 'Failed to capture sentence. Please try again.');
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -1394,6 +1383,56 @@ function removeSentenceHighlight(): void {
   });
 
   currentSentenceHighlight = [];
+}
+
+/**
+ * Show toast notification
+ */
+function showToastNotification(type: 'success' | 'error', message: string): void {
+  // Remove existing toast
+  if (currentToast) {
+    currentToast.remove();
+    currentToast = null;
+  }
+
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.className = `fluent-toast fluent-toast--${type}`;
+
+  // Add icon
+  const icon = document.createElement('div');
+  icon.className = 'fluent-toast__icon';
+  icon.textContent = type === 'success' ? '✓' : '✗';
+  toast.appendChild(icon);
+
+  // Add message
+  const messageEl = document.createElement('div');
+  messageEl.className = 'fluent-toast__message';
+  messageEl.textContent = message;
+  toast.appendChild(messageEl);
+
+  // Add close button
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'fluent-toast__close';
+  closeBtn.textContent = '×';
+  closeBtn.setAttribute('aria-label', 'Close notification');
+  closeBtn.addEventListener('click', () => {
+    toast.remove();
+    currentToast = null;
+  });
+  toast.appendChild(closeBtn);
+
+  // Add to page
+  document.body.appendChild(toast);
+  currentToast = toast;
+
+  // Auto-remove after 4 seconds
+  setTimeout(() => {
+    if (currentToast === toast) {
+      toast.remove();
+      currentToast = null;
+    }
+  }, 4000);
 }
 
 /**

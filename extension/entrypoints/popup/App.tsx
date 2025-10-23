@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react';
 import { calculateStats, exportAsJSON, exportAsMarkdown, type UserStats } from '../../utils/stats';
 import { getLogs, type LogEntry } from '../../utils/logger';
 import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
-import { exportGraphData, downloadGraphData } from '../../utils/graphExport';
 import { checkAuthState, signOut, openLoginPage, type AuthState } from '../../utils/auth';
-import { syncCapturedSentences, getSyncStats, type SyncStats } from '../../utils/syncService';
 import { initializeSupabase } from '../../utils/supabase';
 import PokedexView from './PokedexView';
 import './App.css';
@@ -32,12 +30,24 @@ export default function App() {
   const [analysisState, setAnalysisState] = useState<AnalysisModeState>({ active: false, analyzing: false });
   const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false, user: null, session: null });
-  const [syncStats, setSyncStats] = useState<SyncStats>({ unsyncedCount: 0, lastSyncTimestamp: null });
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     initializeApp();
+
+    // Listen for auth state changes
+    const authListener = (message: any) => {
+      if (message.action === 'authStateChanged') {
+        console.log('[Fluent Popup] Auth state changed, reloading data');
+        loadData();
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(authListener);
+
+    // Return cleanup function
+    return () => {
+      chrome.runtime.onMessage.removeListener(authListener);
+    };
   }, []);
 
   const initializeApp = async () => {
@@ -47,13 +57,12 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [statsData, logsData, analysisStateData, glossaryData, auth, sync] = await Promise.all([
+      const [statsData, logsData, analysisStateData, glossaryData, auth] = await Promise.all([
         calculateStats(),
         getLogs(),
         getAnalysisState(),
         loadGlossary(),
         checkAuthState(),
-        getSyncStats(),
       ]);
 
       setStats(statsData);
@@ -61,7 +70,6 @@ export default function App() {
       setAnalysisState(analysisStateData);
       setGlossary(glossaryData);
       setAuthState(auth);
-      setSyncStats(sync);
 
       // Group terms by date
       const grouped: TermsByDate = {};
@@ -126,59 +134,6 @@ export default function App() {
     downloadFile(markdown, 'fluent-logs.md', 'text/markdown');
   };
 
-  const handleExportGraph = async () => {
-    try {
-      const graphData = await exportGraphData();
-      downloadGraphData(graphData);
-    } catch (error) {
-      console.error('[Fluent] Failed to export graph data:', error);
-    }
-  };
-
-  const handleSyncClick = async () => {
-    if (!authState.isAuthenticated) {
-      setSyncMessage({ type: 'error', text: 'Please log in first' });
-      return;
-    }
-
-    if (syncStats.unsyncedCount === 0) {
-      setSyncMessage({ type: 'error', text: 'No data to sync' });
-      setTimeout(() => setSyncMessage(null), 3000);
-      return;
-    }
-
-    setSyncing(true);
-    setSyncMessage(null);
-
-    try {
-      const result = await syncCapturedSentences();
-
-      if (result.success) {
-        setSyncMessage({
-          type: 'success',
-          text: `Synced ${result.sentencesSynced} sentences!`,
-        });
-        
-        // Refresh sync stats
-        const newSyncStats = await getSyncStats();
-        setSyncStats(newSyncStats);
-      } else {
-        setSyncMessage({
-          type: 'error',
-          text: result.error || 'Sync failed',
-        });
-      }
-    } catch (error: any) {
-      setSyncMessage({
-        type: 'error',
-        text: error.message || 'Sync failed',
-      });
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMessage(null), 5000);
-    }
-  };
-
   const handleLogin = () => {
     openLoginPage();
   };
@@ -187,11 +142,8 @@ export default function App() {
     try {
       await signOut();
       setAuthState({ isAuthenticated: false, user: null, session: null });
-      setSyncMessage({ type: 'success', text: 'Logged out successfully' });
-      setTimeout(() => setSyncMessage(null), 3000);
     } catch (error: any) {
-      setSyncMessage({ type: 'error', text: 'Failed to log out' });
-      setTimeout(() => setSyncMessage(null), 3000);
+      console.error('[Fluent] Failed to log out:', error);
     }
   };
 
@@ -244,41 +196,10 @@ export default function App() {
               className="auth-button"
               onClick={handleLogin}
             >
-              🔐 Login to Sync
+              🔐 Login for Auto-Sync
             </button>
           )}
         </div>
-
-        {/* Sync Section */}
-        {authState.isAuthenticated && (
-          <div className="header__sync">
-            <button
-              className={`sync-button ${syncing ? 'sync-button--syncing' : ''}`}
-              onClick={handleSyncClick}
-              disabled={syncing || syncStats.unsyncedCount === 0}
-            >
-              <span className="sync-button__icon">
-                {syncing ? '⟳' : '☁️'}
-              </span>
-              <span className="sync-button__text">
-                {syncing 
-                  ? 'Syncing...' 
-                  : `Sync ${syncStats.unsyncedCount} ${syncStats.unsyncedCount === 1 ? 'item' : 'items'}`
-                }
-              </span>
-            </button>
-            {syncStats.lastSyncTimestamp && (
-              <span className="sync-status">
-                Last synced: {new Date(syncStats.lastSyncTimestamp).toLocaleTimeString()}
-              </span>
-            )}
-            {syncMessage && (
-              <div className={`sync-message sync-message--${syncMessage.type}`}>
-                {syncMessage.text}
-              </div>
-            )}
-          </div>
-        )}
         
         {/* Analyze Button */}
         <div className="header__analyze">
@@ -427,9 +348,6 @@ export default function App() {
             </button>
             <button className="button button--secondary" onClick={handleExportMarkdown}>
               📝 Export as Markdown
-            </button>
-            <button className="button button--secondary" onClick={handleExportGraph}>
-              🕸️ Export for Graph
             </button>
           </div>
         </div>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluent Auth Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 8px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        pre {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Fluent Extension Auth Test</h1>
+        <p>This page tests the authentication synchronization between the website and the Fluent browser extension.</p>
+
+        <div class="test-section">
+            <h3>1. Test Message Broadcasting</h3>
+            <p>Click the button below to simulate a successful login and send auth data to the extension:</p>
+            <button onclick="simulateLogin()">Simulate Login Success</button>
+            <div id="messageStatus" class="status info" style="display: none;">
+                Message sent! Check the extension popup to see if authentication was received.
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Extension Detection</h3>
+            <p>Check if the Fluent extension is installed and active:</p>
+            <button onclick="checkExtension()">Check Extension Status</button>
+            <div id="extensionStatus"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Message History</h3>
+            <p>View messages sent to the extension:</p>
+            <button onclick="clearHistory()">Clear History</button>
+            <pre id="messageHistory">No messages sent yet.</pre>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Instructions</h3>
+            <ol>
+                <li>Make sure the Fluent extension is installed and loaded</li>
+                <li>Click "Simulate Login Success" to send auth data</li>
+                <li>Open the extension popup to verify authentication</li>
+                <li>The login tab should close automatically after successful auth</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let messageHistory = [];
+
+        function simulateLogin() {
+            const mockSession = {
+                access_token: 'mock_access_token_' + Date.now(),
+                refresh_token: 'mock_refresh_token_' + Date.now(),
+                user: {
+                    id: 'mock_user_id',
+                    email: 'test@example.com',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                }
+            };
+
+            const message = {
+                type: 'FLUENT_AUTH_SUCCESS',
+                session: mockSession
+            };
+
+            // Send message to extension
+            window.postMessage(message, window.location.origin);
+
+            // Log the message
+            messageHistory.push({
+                timestamp: new Date().toISOString(),
+                message: message
+            });
+            updateMessageHistory();
+
+            // Show status
+            const status = document.getElementById('messageStatus');
+            status.style.display = 'block';
+            status.className = 'status success';
+            status.textContent = `Auth message sent! User: ${mockSession.user.email}`;
+
+            console.log('[Auth Test] Sent message to extension:', message);
+        }
+
+        function checkExtension() {
+            const statusDiv = document.getElementById('extensionStatus');
+            
+            // Check if we can detect the extension (this is limited due to security)
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                statusDiv.innerHTML = '<div class="status success">✅ Chrome extension API detected</div>';
+            } else {
+                statusDiv.innerHTML = '<div class="status info">ℹ️ Extension detection limited in web context</div>';
+            }
+        }
+
+        function updateMessageHistory() {
+            const historyDiv = document.getElementById('messageHistory');
+            if (messageHistory.length === 0) {
+                historyDiv.textContent = 'No messages sent yet.';
+            } else {
+                historyDiv.textContent = JSON.stringify(messageHistory, null, 2);
+            }
+        }
+
+        function clearHistory() {
+            messageHistory = [];
+            updateMessageHistory();
+        }
+
+        // Listen for any responses from the extension (if any)
+        window.addEventListener('message', (event) => {
+            console.log('[Auth Test] Received message:', event.data);
+        });
+
+        console.log('[Auth Test] Test page loaded. Extension should be listening for auth messages.');
+    </script>
+</body>
+</html>

@@ -6,6 +6,13 @@
 import { getSupabaseClient } from './supabase';
 import type { User, Session } from '@supabase/supabase-js';
 
+export interface StoredAuthSession {
+  access_token: string;
+  refresh_token: string;
+  user: User;
+  timestamp: string;
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
@@ -111,6 +118,39 @@ export async function setSessionFromWebsite(session: {
 }
 
 /**
+ * Restore session from chrome.storage on startup
+ */
+export async function restoreSession(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.local.get('fluentAuthSession');
+    const storedSession = result.fluentAuthSession;
+    
+    if (!storedSession) {
+      console.log('[Fluent Auth] No stored session found');
+      return false;
+    }
+    
+    // Check if session is not too old (e.g., 30 days)
+    const sessionAge = Date.now() - new Date(storedSession.timestamp).getTime();
+    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+    
+    if (sessionAge > maxAge) {
+      console.log('[Fluent Auth] Stored session expired');
+      await chrome.storage.local.remove('fluentAuthSession');
+      return false;
+    }
+    
+    // Restore the session
+    await setSessionFromWebsite(storedSession);
+    console.log('[Fluent Auth] Session restored from storage');
+    return true;
+  } catch (error) {
+    console.error('[Fluent Auth] Failed to restore session:', error);
+    return false;
+  }
+}
+
+/**
  * Open login page in browser
  */
 export function openLoginPage(): void {
@@ -121,26 +161,4 @@ export function openLoginPage(): void {
   chrome.tabs.create({ url: loginUrl });
 }
 
-/**
- * Listen for auth messages from website
- */
-export function initAuthListener(): void {
-  // Listen for messages from website
-  window.addEventListener('message', async (event) => {
-    // Only accept messages from our website
-    const websiteUrl = import.meta.env.VITE_WEBSITE_URL || 'http://localhost:3000';
-    if (!event.origin.startsWith(websiteUrl)) {
-      return;
-    }
-
-    if (event.data.type === 'FLUENT_AUTH_SUCCESS' && event.data.session) {
-      try {
-        await setSessionFromWebsite(event.data.session);
-        console.log('[Fluent Auth] Successfully authenticated from website');
-      } catch (error) {
-        console.error('[Fluent Auth] Failed to set session from website:', error);
-      }
-    }
-  });
-}
 

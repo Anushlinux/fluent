@@ -33,8 +33,80 @@ export default defineBackground({
   // Initial badge update and context menu creation
   updateBadge();
   createContextMenu();
+
+  // Restore session on startup
+  restoreAuthSession();
+
+  // Listen for auth messages from content script
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'setAuthSession') {
+      handleAuthSession(message.session, sender.tab?.id)
+        .then(() => {
+          sendResponse({ success: true });
+        })
+        .catch((error) => {
+          console.error('[Fluent] Failed to set auth session:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+      return true; // Required for async response
+    }
+  });
   },
 });
+
+/**
+ * Restore auth session on startup
+ */
+async function restoreAuthSession(): Promise<void> {
+  try {
+    const { restoreSession } = await import('../utils/auth');
+    const restored = await restoreSession();
+    if (restored) {
+      console.log('[Fluent] Auth session restored on startup');
+    }
+  } catch (error) {
+    console.error('[Fluent] Failed to restore auth session:', error);
+  }
+}
+
+/**
+ * Handle auth session from content script
+ */
+async function handleAuthSession(session: any, tabId?: number): Promise<void> {
+  try {
+    console.log('[Fluent Background] Setting auth session');
+    
+    // Import setSessionFromWebsite dynamically
+    const { setSessionFromWebsite } = await import('../utils/auth');
+    
+    // Set the session in Supabase
+    await setSessionFromWebsite(session);
+    
+    // Store session in chrome.storage for persistence
+    await chrome.storage.local.set({
+      fluentAuthSession: {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        user: session.user,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    
+    console.log('[Fluent Background] Auth session set successfully');
+    
+    // Close the login tab if it exists
+    if (tabId) {
+      await chrome.tabs.remove(tabId);
+      console.log('[Fluent Background] Login tab closed');
+    }
+    
+    // Notify all extension pages to refresh auth state
+    chrome.runtime.sendMessage({ action: 'authStateChanged' });
+  } catch (error) {
+    console.error('[Fluent Background] Error handling auth session:', error);
+    throw error;
+  }
+}
 
 /**
  * Create context menu for sentence capture

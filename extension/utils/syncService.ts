@@ -5,7 +5,6 @@
 
 import { getSupabaseClient } from './supabase';
 import { getUser } from './auth';
-import { exportGraphData, type GraphData } from './graphExport';
 
 export interface SyncStats {
   unsyncedCount: number;
@@ -15,8 +14,6 @@ export interface SyncStats {
 export interface SyncResult {
   success: boolean;
   sentencesSynced: number;
-  nodesSynced: number;
-  edgesSynced: number;
   error?: string;
 }
 
@@ -24,6 +21,72 @@ const STORAGE_KEYS = {
   LAST_SYNC: 'lastSyncTimestamp',
   UNSYNCED_COUNT: 'unsyncedCount',
 };
+
+interface CapturedSentence {
+  id: string;
+  sentence: string;
+  terms: string[];
+  context: string;
+  framework?: string;
+  secondaryContext?: string;
+  confidence: number;
+  timestamp: string;
+}
+
+/**
+ * Sync a single sentence immediately to Supabase
+ * This is called right after sentence capture for real-time sync
+ */
+export async function syncSentenceImmediately(sentence: CapturedSentence): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Check authentication
+    const user = await getUser();
+    if (!user) {
+      return {
+        success: false,
+        error: 'Please log in to sync sentences',
+      };
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Prepare sentence data for Supabase
+    const sentenceData = {
+      id: sentence.id,
+      user_id: user.id,
+      sentence: sentence.sentence,
+      terms: sentence.terms || [],
+      context: sentence.context,
+      framework: sentence.framework,
+      secondary_context: sentence.secondaryContext,
+      confidence: sentence.confidence,
+      timestamp: sentence.timestamp,
+      synced_at: new Date().toISOString(),
+    };
+
+    // Insert into Supabase
+    const { error } = await supabase
+      .from('captured_sentences')
+      .upsert(sentenceData, { onConflict: 'id' });
+
+    if (error) {
+      console.error('[Fluent Sync] Failed to sync sentence:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to sync to database',
+      };
+    }
+
+    console.log('[Fluent Sync] Sentence synced successfully:', sentence.id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Fluent Sync] Exception during sync:', error);
+    return {
+      success: false,
+      error: error.message || 'Network error. Please try again.',
+    };
+  }
+}
 
 /**
  * Sync captured sentences to Supabase
@@ -36,8 +99,6 @@ export async function syncCapturedSentences(): Promise<SyncResult> {
       return {
         success: false,
         sentencesSynced: 0,
-        nodesSynced: 0,
-        edgesSynced: 0,
         error: 'User not authenticated',
       };
     }
@@ -52,8 +113,6 @@ export async function syncCapturedSentences(): Promise<SyncResult> {
       return {
         success: true,
         sentencesSynced: 0,
-        nodesSynced: 0,
-        edgesSynced: 0,
       };
     }
 
@@ -82,95 +141,25 @@ export async function syncCapturedSentences(): Promise<SyncResult> {
       if (error) throw error;
     }
 
-    // Generate and sync graph data
-    const graphData = await exportGraphData();
-    const syncGraphResult = await syncGraphData(graphData, user.id);
-
     // Mark as synced
     await markSentencesAsSynced();
 
     console.log('[Fluent Sync] Sync completed:', {
       sentences: sentences.length,
-      nodes: syncGraphResult.nodesSynced,
-      edges: syncGraphResult.edgesSynced,
     });
 
     return {
       success: true,
       sentencesSynced: sentences.length,
-      nodesSynced: syncGraphResult.nodesSynced,
-      edgesSynced: syncGraphResult.edgesSynced,
     };
   } catch (error: any) {
     console.error('[Fluent Sync] Sync failed:', error);
     return {
       success: false,
       sentencesSynced: 0,
-      nodesSynced: 0,
-      edgesSynced: 0,
       error: error.message || 'Sync failed',
     };
   }
-}
-
-/**
- * Sync graph data (nodes and edges) to Supabase
- */
-async function syncGraphData(graphData: GraphData, userId: string): Promise<{ nodesSynced: number; edgesSynced: number }> {
-  const supabase = getSupabaseClient();
-
-  // Clear existing graph data for this user
-  await supabase.from('graph_nodes').delete().eq('user_id', userId);
-  await supabase.from('graph_edges').delete().eq('user_id', userId);
-
-  let nodesSynced = 0;
-  let edgesSynced = 0;
-
-  // Insert nodes
-  if (graphData.nodes.length > 0) {
-    const nodes = graphData.nodes.map(node => ({
-      id: node.id,
-      user_id: userId,
-      type: node.type,
-      label: node.label,
-      terms: node.terms || [],
-      context: node.context,
-      framework: node.framework,
-      timestamp: node.timestamp,
-      confidence: node.metadata.confidence,
-      quiz_completed: node.metadata.quizCompleted || false,
-    }));
-
-    const { error, data } = await supabase
-      .from('graph_nodes')
-      .insert(nodes)
-      .select();
-
-    if (error) throw error;
-    nodesSynced = data?.length || nodes.length;
-  }
-
-  // Insert edges
-  if (graphData.edges.length > 0) {
-    const edges = graphData.edges.map(edge => ({
-      id: edge.id,
-      user_id: userId,
-      source_id: edge.source,
-      target_id: edge.target,
-      weight: edge.weight,
-      type: edge.type,
-    }));
-
-    const { error, data } = await supabase
-      .from('graph_edges')
-      .insert(edges)
-      .select();
-
-    if (error) throw error;
-    edgesSynced = data?.length || edges.length;
-  }
-
-  return { nodesSynced, edgesSynced };
 }
 
 /**

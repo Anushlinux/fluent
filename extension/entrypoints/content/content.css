@@ -376,3 +376,86 @@
   }
 }
 
+/* Toast Notification */
+.fluent-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  min-width: 280px;
+  max-width: 400px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.12);
+  padding: 16px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: #1f2937;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: fluent-toast-slide-in 0.3s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes fluent-toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fluent-toast--success {
+  border-left: 4px solid #10b981;
+}
+
+.fluent-toast--error {
+  border-left: 4px solid #ef4444;
+}
+
+.fluent-toast__icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.fluent-toast--success .fluent-toast__icon {
+  color: #10b981;
+}
+
+.fluent-toast--error .fluent-toast__icon {
+  color: #ef4444;
+}
+
+.fluent-toast__message {
+  flex: 1;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.fluent-toast__close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.fluent-toast__close:hover {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+

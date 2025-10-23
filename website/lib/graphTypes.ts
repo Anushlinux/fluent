@@ -47,3 +47,4 @@ export interface CapturedSentence {
   timestamp: string;
 }
 
+ 
