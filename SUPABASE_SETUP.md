@@ -1,219 +1,340 @@
 # Supabase Setup Guide
 
-## 1. Create Supabase Project
+Complete guide for setting up Supabase database for the Fluent Knowledge Graph Platform.
 
-1. Go to [https://supabase.com](https://supabase.com)
-2. Click "Start your project"
-3. Create a new project
-4. Note down your **Project URL** and **anon/public key**
+## Table of Contents
 
-## 2. Database Schema
+1. [Prerequisites](#prerequisites)
+2. [Quick Start](#quick-start)
+3. [Detailed Setup](#detailed-setup)
+4. [Environment Variables](#environment-variables)
+5. [Verify Setup](#verify-setup)
+6. [Troubleshooting](#troubleshooting)
 
-Execute these SQL commands in your Supabase SQL Editor:
+---
 
-### Create Tables
+## Prerequisites
 
-```sql
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+- Supabase account (free tier works fine)
+- Supabase project created
+- Access to Supabase SQL Editor or Supabase CLI
 
--- Profiles table (linked to auth.users)
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
-  email TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+## Quick Start
 
--- Captured sentences table
-CREATE TABLE captured_sentences (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  sentence TEXT NOT NULL,
-  terms TEXT[] NOT NULL DEFAULT '{}',
-  context TEXT,
-  framework TEXT,
-  secondary_context TEXT,
-  confidence INTEGER NOT NULL,
-  timestamp TIMESTAMPTZ NOT NULL,
-  synced_at TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### Option 1: Using Supabase Dashboard (Recommended for Beginners)
 
--- Graph nodes table
-CREATE TABLE graph_nodes (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('topic', 'sentence')),
-  label TEXT NOT NULL,
-  terms TEXT[] DEFAULT '{}',
-  context TEXT,
-  framework TEXT,
-  timestamp TIMESTAMPTZ NOT NULL,
-  confidence INTEGER,
-  quiz_completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+1. **Go to your Supabase project** at https://app.supabase.com
+2. **Navigate to SQL Editor** (left sidebar)
+3. **Copy the entire contents** of `supabase/migrations/001_initial_schema.sql`
+4. **Paste into SQL Editor** and click "Run"
+5. **Wait for success message** (should take ~10 seconds)
 
--- Graph edges table
-CREATE TABLE graph_edges (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  source_id TEXT NOT NULL,
-  target_id TEXT NOT NULL,
-  weight DECIMAL(3,2) NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('term-match', 'context-match', 'both')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### Option 2: Using Supabase CLI (Recommended for Developers)
 
--- Create indexes
-CREATE INDEX idx_captured_sentences_user_id ON captured_sentences(user_id);
-CREATE INDEX idx_captured_sentences_timestamp ON captured_sentences(timestamp);
-CREATE INDEX idx_graph_nodes_user_id ON graph_nodes(user_id);
-CREATE INDEX idx_graph_nodes_type ON graph_nodes(type);
-CREATE INDEX idx_graph_edges_user_id ON graph_edges(user_id);
-CREATE INDEX idx_graph_edges_source ON graph_edges(source_id);
-CREATE INDEX idx_graph_edges_target ON graph_edges(target_id);
+```bash
+# Install Supabase CLI if not already installed
+npm install -g supabase
+
+# Link to your project (you'll need your project reference)
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Push the migration
+supabase db push
+
+# Alternative: Apply migration directly
+supabase db reset
 ```
 
-### Row Level Security (RLS) Policies
+---
 
-```sql
--- Enable RLS on all tables
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE captured_sentences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE graph_nodes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE graph_edges ENABLE ROW LEVEL SECURITY;
+## Detailed Setup
 
--- Profiles policies
-CREATE POLICY "Users can view own profile"
-  ON profiles FOR SELECT
-  USING (auth.uid() = id);
+### Step 1: Create Supabase Project
 
-CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id);
+1. Go to https://app.supabase.com
+2. Click "New Project"
+3. Fill in:
+   - **Project Name**: `fluent-knowledge-graph` (or your preferred name)
+   - **Database Password**: (save this securely)
+   - **Region**: Choose closest to your users
+4. Wait for project to be created (~2 minutes)
 
--- Captured sentences policies
-CREATE POLICY "Users can view own sentences"
-  ON captured_sentences FOR SELECT
-  USING (auth.uid() = user_id);
+### Step 2: Enable pgvector Extension
 
-CREATE POLICY "Users can insert own sentences"
-  ON captured_sentences FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+The migration file attempts to enable `pgvector` automatically, but verify it's enabled:
 
-CREATE POLICY "Users can update own sentences"
-  ON captured_sentences FOR UPDATE
-  USING (auth.uid() = user_id);
+1. Go to **Database** → **Extensions** in Supabase dashboard
+2. Search for "vector"
+3. Enable **pgvector** if not already enabled
 
-CREATE POLICY "Users can delete own sentences"
-  ON captured_sentences FOR DELETE
-  USING (auth.uid() = user_id);
+### Step 3: Run Migration
 
--- Graph nodes policies
-CREATE POLICY "Users can view own nodes"
-  ON graph_nodes FOR SELECT
-  USING (auth.uid() = user_id);
+Follow **Quick Start Option 1** or **Option 2** above.
 
-CREATE POLICY "Users can insert own nodes"
-  ON graph_nodes FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+**Important**: If you encounter errors about missing columns (`url` or `asi_extract`), run the additional migration:
 
-CREATE POLICY "Users can update own nodes"
-  ON graph_nodes FOR UPDATE
-  USING (auth.uid() = user_id);
+1. **Copy contents** of `supabase/migrations/002_add_missing_columns.sql`
+2. **Paste into SQL Editor** and click "Run"
+3. **Verify success message** shows "All columns added successfully!"
 
-CREATE POLICY "Users can delete own nodes"
-  ON graph_nodes FOR DELETE
-  USING (auth.uid() = user_id);
+### Step 4: Verify Tables Were Created
 
--- Graph edges policies
-CREATE POLICY "Users can view own edges"
-  ON graph_edges FOR SELECT
-  USING (auth.uid() = user_id);
+1. Go to **Table Editor** in Supabase dashboard
+2. You should see these tables:
+   - ✅ `profiles`
+   - ✅ `captured_sentences`
+   - ✅ `graph_nodes`
+   - ✅ `graph_edges`
+   - ✅ `user_sessions`
+   - ✅ `insights`
 
-CREATE POLICY "Users can insert own edges"
-  ON graph_edges FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+### Step 5: Verify RLS Policies
 
-CREATE POLICY "Users can update own edges"
-  ON graph_edges FOR UPDATE
-  USING (auth.uid() = user_id);
+1. Go to **Authentication** → **Policies**
+2. Select each table and verify policies exist
+3. You should see 4 policies per table (SELECT, INSERT, UPDATE, DELETE)
 
-CREATE POLICY "Users can delete own edges"
-  ON graph_edges FOR DELETE
-  USING (auth.uid() = user_id);
-```
+---
 
-### Trigger for Profile Creation
+## Environment Variables
 
-```sql
--- Function to create profile on signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+### For Extension (`extension/.env`)
 
--- Trigger to call the function
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-```
-
-## 3. Authentication Configuration
-
-1. Go to Authentication → Settings in Supabase dashboard
-2. Enable **Email** auth provider
-3. Configure **Redirect URLs**:
-   - Add `http://localhost:3000/auth/callback` for local development
-   - Add your production URL when deploying (e.g., `https://yourdomain.com/auth/callback`)
-   - Add extension URL: `chrome-extension://YOUR_EXTENSION_ID/auth/callback`
-
-## 4. Environment Variables
-
-### Website (.env.local)
-
-Create `website/.env.local`:
+Create or update `.env` file:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your-project-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_WEBSITE_URL=http://localhost:3001
 ```
 
-### Extension
+### For Website (`website/.env.local`)
 
-Environment variables will be injected during build. Update `extension/wxt.config.ts` to include them.
+Create or update `.env.local` file:
 
-## 5. Get Your Credentials
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
 
-1. Go to Project Settings → API in Supabase dashboard
-2. Copy:
-   - **Project URL** (e.g., `https://xxxxx.supabase.co`)
-   - **anon/public key** (starts with `eyJ...`)
+### For Agent (`agent/.env`)
 
-## 6. Test Connection
+Create or update `.env` file:
 
-After setting up, test the connection:
+```env
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-here
+ASI_ONE_API_KEY=your-asi-one-api-key
+```
+
+### Where to Find These Values
+
+1. **Supabase URL**: Project Settings → API → Project URL
+2. **Anon Key**: Project Settings → API → Project API keys → `anon` `public`
+
+**⚠️ Important**: Use the `anon` key, NOT the `service_role` key for client-side applications.
+
+---
+
+## Verify Setup
+
+### Test 1: Check Tables Exist
 
 ```sql
--- Check if tables are created
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public';
+-- Run in SQL Editor
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public'
+ORDER BY table_name;
+```
 
--- Check if RLS is enabled
-SELECT tablename, rowsecurity FROM pg_tables 
+Expected output: 6 tables (captured_sentences, graph_edges, graph_nodes, insights, profiles, user_sessions)
+
+### Test 2: Verify RLS is Enabled
+
+```sql
+-- Run in SQL Editor
+SELECT tablename, rowsecurity 
+FROM pg_tables 
 WHERE schemaname = 'public';
 ```
 
-## Notes
+All tables should show `rowsecurity = true`
 
-- The `anon` key is safe to use in client-side code (browser extension and website)
-- RLS policies ensure users can only access their own data
-- All timestamps are stored in UTC
-- The trigger automatically creates a profile when a user signs up
+### Test 3: Check Indexes
+
+```sql
+-- Run in SQL Editor
+SELECT tablename, indexname 
+FROM pg_indexes 
+WHERE schemaname = 'public'
+ORDER BY tablename, indexname;
+```
+
+You should see multiple indexes per table (especially on user_id, timestamp, context)
+
+### Test 4: Verify pgvector Extension
+
+```sql
+-- Run in SQL Editor
+SELECT * FROM pg_extension WHERE extname = 'vector';
+```
+
+Should return 1 row if vector extension is enabled.
+
+### Test 5: Test RLS Policies
+
+1. Create a test user via Supabase Auth
+2. Try to insert data as that user
+3. Try to query data as that user
+4. Verify you can only see your own data
+
+---
+
+## Database Schema Overview
+
+### Tables
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| **profiles** | User profiles | id, email, xp, streak_days |
+| **captured_sentences** | Raw captured learning data | sentence, terms[], context, asi_extract, embedding |
+| **graph_nodes** | Knowledge graph nodes | type, label, context, quiz_completed |
+| **graph_edges** | Relationships between nodes | source_id, target_id, weight |
+| **user_sessions** | Multi-turn chat sessions | session_data JSONB |
+| **insights** | Proactive nudges/gaps | insight_type, content, metadata |
+
+### Key Features
+
+- **Vector Embeddings**: `captured_sentences.embedding` column ready for RAG (1536 dimensions)
+- **RLS Enabled**: All tables restrict access to user's own data
+- **Indexes**: Optimized for common queries (user_id, timestamp, context)
+- **Auto Profile Creation**: Profiles automatically created on user signup (via trigger)
+- **JSONB Support**: Flexible metadata storage in `asi_extract`, `session_data`, `metadata` columns
+
+---
+
+## Troubleshooting
+
+### Issue: "Could not find the 'url' column" or "Could not find the 'asi_extract' column"
+
+**Solution**: Run the additional migration:
+1. Go to SQL Editor in Supabase dashboard
+2. Copy contents of `supabase/migrations/002_add_missing_columns.sql`
+3. Paste and click "Run"
+4. Verify success message shows "All columns added successfully!"
+
+### Issue: "extension 'vector' does not exist"
+
+**Solution**: Enable pgvector manually:
+1. Go to Database → Extensions
+2. Enable "pgvector"
+3. Re-run migration
+
+### Issue: "relation already exists"
+
+**Solution**: Tables already created. If you need to reset:
+```sql
+-- WARNING: This deletes all data!
+DROP TABLE IF EXISTS insights CASCADE;
+DROP TABLE IF EXISTS user_sessions CASCADE;
+DROP TABLE IF EXISTS graph_edges CASCADE;
+DROP TABLE IF EXISTS graph_nodes CASCADE;
+DROP TABLE IF EXISTS captured_sentences CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+```
+Then re-run migration.
+
+### Issue: RLS policies block all access
+
+**Solution**: Verify you're authenticated:
+1. Check `auth.uid()` returns your user ID:
+   ```sql
+   SELECT auth.uid();
+   ```
+2. If null, you're not authenticated. Sign in via extension/website first.
+
+### Issue: Can't connect from extension/website
+
+**Solution**: 
+1. Verify environment variables are correct
+2. Check CORS settings in Supabase dashboard (should allow your domain)
+3. Verify anon key is correct (not service_role key)
+
+### Issue: Slow queries
+
+**Solution**:
+1. Check if indexes are being used:
+   ```sql
+   EXPLAIN ANALYZE SELECT * FROM captured_sentences WHERE user_id = 'your-uuid';
+   ```
+2. Add additional indexes if needed for your query patterns
+
+### Issue: Vector column not working
+
+**Solution**: 
+- Vector embeddings are prepared but not yet populated
+- See `VECTOR_RAG_TODO.md` for implementation plan
+- For now, this column will be NULL (that's expected)
+
+---
+
+## Next Steps
+
+After setup is complete:
+
+1. ✅ **Test Authentication**: Sign up via extension or website
+2. ✅ **Capture Sentence**: Test sentence capture flow
+3. ✅ **Verify Data**: Check Supabase Table Editor to see data
+4. ✅ **Test Graph**: View graph on website
+5. ✅ **Run Agent**: Start Python agent and test `/explain-sentence` endpoint
+
+---
+
+## Additional Resources
+
+- **Supabase Docs**: https://supabase.com/docs
+- **pgvector Docs**: https://github.com/pgvector/pgvector
+- **RLS Guide**: https://supabase.com/docs/guides/auth/row-level-security
+- **Supabase CLI**: https://supabase.com/docs/guides/cli
+
+---
+
+## Schema Diagram
+
+```
+┌─────────────┐
+│   profiles  │
+│  (auth ext) │
+└──────┬──────┘
+       │
+       │ 1:N
+       ├─────────────────────┬─────────────────────┬─────────────────────┐
+       │                     │                     │                     │
+       ▼                     ▼                     ▼                     ▼
+┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐
+│captured_sentences│  │ graph_nodes  │  │  user_sessions   │  │   insights   │
+│                  │  │              │  │                  │  │              │
+│ - sentence       │  │ - type       │  │ - session_data   │  │ - type       │
+│ - terms[]        │  │ - label      │  │ - started_at     │  │ - content    │
+│ - context        │  │ - quiz_done  │  │ - ended_at       │  │ - metadata   │
+│ - embedding      │  └──────┬───────┘  └──────────────────┘  │ - is_read    │
+│ - asi_extract    │         │                                 └──────────────┘
+└──────────────────┘         │
+                             │ N:N
+                             ▼
+                      ┌──────────────┐
+                      │ graph_edges  │
+                      │              │
+                      │ - source_id  │
+                      │ - target_id  │
+                      │ - weight     │
+                      └──────────────┘
+```
+
+---
+
+**Last Updated**: 2025-01-25  
+**Schema Version**: 001  
+**Migration File**: `supabase/migrations/001_initial_schema.sql`
 

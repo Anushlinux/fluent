@@ -15,6 +15,7 @@ export interface GraphNode {
   metadata: {
     confidence: number;
     quizCompleted?: boolean;
+    explanation?: string | null;
   };
 }
 
@@ -45,6 +46,11 @@ export interface CapturedSentence {
   secondaryContext?: string;
   confidence: number;
   timestamp: string;
+  asi_extract?: {
+    explanation?: string;
+    concepts?: string[];
+    relations?: any[];
+  };
 }
 
  

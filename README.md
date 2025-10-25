@@ -22,7 +22,10 @@ All data is securely stored in Supabase and synchronized via manual sync, giving
 - 📊 **Dashboard** - Track XP, streaks, and learning stats
 - 📚 **Pokédex** - Collect and master terms like Pokémon
 - 🎯 **Interactive Quizzes** - Test knowledge and earn XP
-- ☁️ **Manual Sync** - Upload captured data to cloud on demand
+- ☁️ **Auto-Sync** - Immediate synchronization to Supabase
+- 💡 **Knowledge Gap Detection** - AI-powered gap analysis every 5 minutes
+- 🧩 **Adaptive Quizzes** - Personalized quizzes based on weak clusters
+- 🔔 **Proactive Nudges** - Badge notifications for learning opportunities
 
 ### Web Application
 
@@ -33,14 +36,30 @@ All data is securely stored in Supabase and synchronized via manual sync, giving
 - 📈 **Analytics** - View learning stats and insights
 - 🎨 **Beautiful UI** - Modern, responsive design
 - 💾 **Cloud Storage** - All data safely stored in Supabase
+- 🔔 **Real-Time Insights** - Live toast notifications for knowledge gaps
+- 💬 **AI Chat Assistant** - Query your graph with ASI:One + MeTTa reasoning
+- 🧠 **MeTTa Integration** - Symbolic reasoning for deeper knowledge connections
+
+### AI-Powered Agent (New!)
+
+- 🤖 **ASI:One Integration** - Intelligent extraction and reasoning
+  - `asi1-mini`: Concept extraction and explanations
+  - `asi1-graph`: Knowledge graph analysis and reasoning
+- 🧠 **MeTTa Reasoning Engine** - Symbolic logic for Web3 concepts
+- 🔍 **Automatic Gap Detection** - Identifies weak knowledge clusters
+- 📝 **Adaptive Quiz Generation** - Creates personalized quizzes
+- 💡 **Proactive Insights** - Real-time learning recommendations
+- 📊 **Graph Analysis** - Advanced reasoning over your knowledge graph
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
+- Python 3.12+ (for AI agent)
 - Chrome/Brave browser
 - Supabase account (free tier works!)
+- ASI:One API key (for agent features)
 
 ### Setup
 
@@ -76,40 +95,47 @@ Quick summary:
 │  Browser Extension  │
 │  (React + WXT)      │
 │  - Captures data    │
-│  - Stores locally   │
-│  - Manual sync      │
+│  - Auto sync        │
+│  - Gap detection    │
+│  - Adaptive quizzes │
 └──────────┬──────────┘
            │
-           │ HTTP (Manual Sync)
-           ↓
-┌─────────────────────┐
-│     Supabase        │
-│  - PostgreSQL DB    │
-│  - Authentication   │
-│  - Real-time subs   │
-│  - Row Level        │
-│    Security (RLS)   │
-└──────────┬──────────┘
-           │
-           │ HTTP + WebSocket
-           ↓
-┌─────────────────────┐
-│   Web Application   │
-│  (Next.js + React)  │
-│  - Authentication   │
-│  - Graph viz        │
-│  - Analytics        │
-│  - Real-time        │
-└─────────────────────┘
+           │ HTTP (Auto Sync)
+           ├────────────────────┐
+           ↓                    ↓
+┌─────────────────────┐  ┌──────────────────────┐
+│     Supabase        │  │   Python AI Agent    │
+│  - PostgreSQL DB    │  │  (uAgents)           │
+│  - Authentication   │  │  - ASI:One API       │
+│  - Real-time subs   │  │  - MeTTa reasoning   │
+│  - Row Level        │  │  - Gap detection     │
+│    Security (RLS)   │  │  - Quiz generation   │
+│  - Vector storage   │  │  - Graph analysis    │
+└──────────┬──────────┘  └──────────┬───────────┘
+           │                        │
+           │ HTTP + WebSocket       │ REST API
+           ↓                        ↓
+┌─────────────────────────────────────────┐
+│         Web Application                 │
+│        (Next.js + React)                │
+│  - Authentication                       │
+│  - Graph visualization (React Flow)     │
+│  - Real-time toast notifications        │
+│  - AI Chat Assistant                    │
+│  - Analytics & Insights                 │
+└─────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
-1. **Capture**: Extension stores sentences locally in Chrome storage
-2. **Sync**: User clicks "Sync" → Extension uploads to Supabase
-3. **Process**: Extension generates graph nodes/edges and uploads
-4. **Display**: Website fetches and visualizes graph data
-5. **Update**: Real-time subscriptions keep graph in sync
+1. **Capture**: User highlights text → Extension captures sentence
+2. **AI Processing**: Optional agent call for instant explanation (ASI:One + MeTTa)
+3. **Auto-Sync**: Sentence immediately synced to Supabase
+4. **Graph Generation**: Website processes sentences into graph nodes/edges
+5. **Real-Time Updates**: WebSocket subscriptions update graph live
+6. **Gap Detection**: Background agent analyzes graph every 5 minutes
+7. **Proactive Nudges**: Insights stored → Real-time notifications displayed
+8. **Adaptive Learning**: User takes quiz → XP updated → Graph strengthened
 
 ### Database Schema
 
@@ -117,6 +143,8 @@ Quick summary:
 profiles            -- User profiles (linked to auth.users)
 ├── id (UUID, PK)
 ├── email
+├── xp
+├── streak_days
 └── created_at
 
 captured_sentences  -- Raw captured sentences
@@ -125,6 +153,8 @@ captured_sentences  -- Raw captured sentences
 ├── sentence
 ├── terms[]
 ├── context
+├── asi_extract (JSONB)
+├── embedding (vector(1536))  -- For future RAG
 └── timestamp
 
 graph_nodes        -- Processed nodes for visualization
@@ -132,6 +162,7 @@ graph_nodes        -- Processed nodes for visualization
 ├── user_id (FK → profiles)
 ├── type (topic | sentence)
 ├── label
+├── quiz_completed (BOOLEAN)
 └── metadata
 
 graph_edges        -- Relationships between nodes
@@ -139,7 +170,23 @@ graph_edges        -- Relationships between nodes
 ├── user_id (FK → profiles)
 ├── source_id (FK → graph_nodes)
 ├── target_id (FK → graph_nodes)
-└── weight
+├── weight
+└── type
+
+user_sessions      -- Multi-turn chat sessions
+├── id (UUID, PK)
+├── user_id (FK → profiles)
+├── session_data (JSONB)
+└── created_at
+
+insights           -- Proactive nudges & knowledge gaps
+├── id (UUID, PK)
+├── user_id (FK → profiles)
+├── insight_type (gap_detected | quiz_suggested | etc.)
+├── content
+├── metadata (JSONB)
+├── is_read
+└── created_at
 ```
 
 ## 🛠️ Technology Stack
@@ -158,47 +205,69 @@ graph_edges        -- Relationships between nodes
 - **Framework**: Next.js 14 (App Router)
 - **UI**: React 18 + TypeScript + Tailwind CSS
 - **Graph**: React Flow for visualization
-- **Database**: Supabase (PostgreSQL)
+- **Database**: Supabase (PostgreSQL + pgvector)
 - **Auth**: Supabase Auth with SSR
 - **Real-time**: Supabase Realtime subscriptions
 - **Deployment**: Vercel-ready
+
+### AI Agent
+
+- **Framework**: uAgents (Python)
+- **AI**: ASI:One API (asi1-mini, asi1-graph)
+- **Reasoning**: MeTTa (Hyperon)
+- **Database**: Supabase Python Client
+- **REST API**: Built-in uAgents REST endpoints
 
 ## 📁 Project Structure
 
 ```
 fluent/
-├── extension/              # Browser extension
+├── agent/                  # AI Agent (Python)
+│   ├── mailbox_agent.py    # Main agent with REST endpoints
+│   ├── requirements.txt    # Python dependencies
+│   ├── .env                # Environment variables (ASI:One API key)
+│   └── README.md           # Agent documentation
+│
+├── extension/              # Browser Extension
 │   ├── components/         # React components
+│   │   ├── Popover.tsx     # Term definition popover
+│   │   └── QuizModal.tsx   # Adaptive quiz modal (NEW!)
 │   ├── entrypoints/        # Extension entry points
-│   │   ├── background.ts   # Background service worker
+│   │   ├── background.ts   # Background worker + gap detection (UPDATED!)
 │   │   ├── content/        # Content script
-│   │   └── popup/          # Extension popup
+│   │   └── popup/          # Extension popup + insights (UPDATED!)
 │   ├── utils/              # Utility functions
 │   │   ├── auth.ts         # Authentication
 │   │   ├── supabase.ts     # Supabase client
-│   │   ├── syncService.ts  # Sync logic
+│   │   ├── syncService.ts  # Auto-sync logic (UPDATED!)
 │   │   └── graphExport.ts  # Graph generation
-│   ├── public/             # Static assets
 │   └── wxt.config.ts       # WXT configuration
 │
-├── website/                # Web application
+├── website/                # Web Application
 │   ├── app/                # Next.js app directory
 │   │   ├── login/          # Login page
 │   │   ├── signup/         # Signup page
 │   │   ├── auth/           # Auth callback
 │   │   └── page.tsx        # Main graph page
 │   ├── components/         # React components
-│   │   ├── GraphViewer.tsx # Graph visualization
-│   │   ├── QueryControls.tsx
-│   │   └── StatsPanel.tsx
+│   │   ├── GraphViewer.tsx # Graph viz + real-time subs (UPDATED!)
+│   │   ├── ToastNotification.tsx  # Real-time nudges (NEW!)
+│   │   ├── GraphChat.tsx   # AI chat assistant (NEW!)
+│   │   ├── TopicNode.tsx   # Graph node components
+│   │   └── SentenceNode.tsx
 │   ├── lib/                # Utilities
 │   │   ├── supabase.ts     # Supabase client
 │   │   ├── graphStorage.ts # Data access layer
 │   │   └── graphTypes.ts   # TypeScript types
 │   └── next.config.ts      # Next.js config
 │
+├── supabase/               # Supabase Configuration (NEW!)
+│   └── migrations/
+│       └── 001_initial_schema.sql  # Database schema
+│
 ├── SETUP_GUIDE.md          # Complete setup guide
-├── SUPABASE_SETUP.md       # Database schema & setup
+├── SUPABASE_SETUP.md       # Database schema & setup (NEW!)
+├── VECTOR_RAG_TODO.md      # Future RAG implementation (NEW!)
 └── README.md               # This file
 ```
 

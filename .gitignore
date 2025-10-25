@@ -41,3 +41,4 @@ coverage/
 *.tsbuildinfo
 .cache/
 
+private_keys.json

@@ -37,6 +37,9 @@ export default defineBackground({
   // Restore session on startup
   restoreAuthSession();
 
+  // Start periodic gap detection (every 5 minutes)
+  startGapDetection();
+
   // Listen for auth messages from content script
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'setAuthSession') {
@@ -192,6 +195,77 @@ async function updateBadge(): Promise<void> {
     console.log(`[Fluent] Badge updated: ${count} terms today`);
   } catch (error) {
     console.error('[Fluent] Failed to update badge:', error);
+  }
+}
+
+/**
+ * Start periodic gap detection
+ */
+function startGapDetection(): void {
+  console.log('[Fluent] Starting periodic gap detection (every 5 minutes)');
+  
+  // Run immediately on startup
+  checkForGaps();
+  
+  // Then every 5 minutes
+  setInterval(() => {
+    checkForGaps();
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+/**
+ * Check for knowledge gaps via agent
+ */
+async function checkForGaps(): Promise<void> {
+  try {
+    // Get authenticated user
+    const authData = await chrome.storage.local.get('fluentAuthSession');
+    const userId = authData?.fluentAuthSession?.user?.id;
+    
+    if (!userId) {
+      console.log('[Fluent] Gap check skipped: Not authenticated');
+      return;
+    }
+    
+    // Get user XP
+    const statsData = await chrome.storage.local.get('fluentStats');
+    const userXp = statsData?.fluentStats?.xp || 0;
+    
+    // Call agent detect-gaps endpoint
+    const response = await fetch('http://localhost:8010/detect-gaps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        user_xp: userXp,
+        history_context: ''
+      })
+    });
+    
+    if (!response.ok) {
+      console.warn('[Fluent] Gap detection failed:', response.status);
+      return;
+    }
+    
+    const data = await response.json();
+    
+    if (data.gaps && data.gaps.length > 0) {
+      console.log(`[Fluent] Detected ${data.gaps.length} knowledge gaps`);
+      
+      // Store gaps for popup to display
+      await chrome.storage.local.set({ fluentGaps: data });
+      
+      // Update badge with '!' indicator
+      await chrome.action.setBadgeText({ text: '!' });
+      await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' }); // Orange for attention
+    } else {
+      console.log('[Fluent] No knowledge gaps detected');
+      // Clear any existing gaps
+      await chrome.storage.local.remove('fluentGaps');
+    }
+  } catch (error) {
+    // Silently fail - agent might be offline
+    console.debug('[Fluent] Gap check skipped (agent offline):', error);
   }
 }
 

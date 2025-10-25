@@ -4,6 +4,7 @@ import { getLogs, type LogEntry } from '../../utils/logger';
 import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
 import { checkAuthState, signOut, openLoginPage, type AuthState } from '../../utils/auth';
 import { initializeSupabase } from '../../utils/supabase';
+import { QuizModal } from '../../components/QuizModal';
 import PokedexView from './PokedexView';
 import './App.css';
 
@@ -21,6 +22,18 @@ interface GlossaryEntry {
 
 type ViewType = 'dashboard' | 'pokedex';
 
+interface Gap {
+  cluster: string;
+  missing_concepts: string[];
+  confidence: number;
+}
+
+interface GapsData {
+  gaps: Gap[];
+  suggestions: string[];
+  timestamp: number;
+}
+
 export default function App() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -30,6 +43,9 @@ export default function App() {
   const [analysisState, setAnalysisState] = useState<AnalysisModeState>({ active: false, analyzing: false });
   const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false, user: null, session: null });
+  const [gaps, setGaps] = useState<GapsData | null>(null);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizData, setQuizData] = useState<any>(null);
 
   useEffect(() => {
     initializeApp();
@@ -57,12 +73,13 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [statsData, logsData, analysisStateData, glossaryData, auth] = await Promise.all([
+      const [statsData, logsData, analysisStateData, glossaryData, auth, gapsData] = await Promise.all([
         calculateStats(),
         getLogs(),
         getAnalysisState(),
         loadGlossary(),
         checkAuthState(),
+        loadGaps(),
       ]);
 
       setStats(statsData);
@@ -70,6 +87,7 @@ export default function App() {
       setAnalysisState(analysisStateData);
       setGlossary(glossaryData);
       setAuthState(auth);
+      setGaps(gapsData);
 
       // Group terms by date
       const grouped: TermsByDate = {};
@@ -86,6 +104,16 @@ export default function App() {
       console.error('[Fluent] Failed to load data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGaps = async (): Promise<GapsData | null> => {
+    try {
+      const result = await chrome.storage.local.get('fluentGaps');
+      return result.fluentGaps || null;
+    } catch (error) {
+      console.error('[Fluent] Failed to load gaps:', error);
+      return null;
     }
   };
 
@@ -145,6 +173,65 @@ export default function App() {
     } catch (error: any) {
       console.error('[Fluent] Failed to log out:', error);
     }
+  };
+
+  const handleTakeQuiz = async (gap: Gap) => {
+    if (!authState.user?.id) {
+      console.error('[Fluent] User not authenticated');
+      return;
+    }
+
+    try {
+      // Call agent to generate quiz
+      const response = await fetch('http://localhost:8010/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: authState.user.id,
+          gap_cluster: gap.cluster,
+          difficulty: 2 // Default to intermediate
+        })
+      });
+
+      if (!response.ok) {
+        console.error('[Fluent] Quiz generation failed:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      setQuizData(data);
+      setShowQuizModal(true);
+    } catch (error) {
+      console.error('[Fluent] Failed to generate quiz:', error);
+    }
+  };
+
+  const handleQuizComplete = async (score: number, earnedXP: number) => {
+    console.log(`[Fluent] Quiz completed: ${score} points, ${earnedXP} XP earned`);
+    
+    // Update stats with earned XP
+    if (stats) {
+      setStats({
+        ...stats,
+        totalXP: stats.totalXP + earnedXP,
+        totalQuizzesTaken: stats.totalQuizzesTaken + 1
+      });
+    }
+
+    // Save to local storage
+    const statsResult = await chrome.storage.local.get('fluentStats');
+    const currentStats = statsResult.fluentStats || {};
+    await chrome.storage.local.set({
+      fluentStats: {
+        ...currentStats,
+        xp: (currentStats.xp || 0) + earnedXP
+      }
+    });
+
+    // Reload data to refresh everything
+    setTimeout(() => {
+      loadData();
+    }, 2000);
   };
 
   const downloadFile = (content: string, filename: string, type: string) => {
@@ -237,6 +324,48 @@ export default function App() {
       {/* Main Content */}
       {currentView === 'dashboard' && (
         <>
+          {/* Knowledge Insights Section */}
+          {authState.isAuthenticated && gaps && gaps.gaps && gaps.gaps.length > 0 && (
+            <div className="section">
+              <h2 className="section__title">💡 Knowledge Insights</h2>
+              <div className="insights-list">
+                {gaps.gaps.map((gap, index) => (
+                  <div key={index} className="insight-card">
+                    <div className="insight-card__header">
+                      <span className="insight-card__cluster">📊 {gap.cluster} Cluster</span>
+                      <span className="insight-card__confidence">
+                        {Math.round(gap.confidence * 100)}% confidence
+                      </span>
+                    </div>
+                    <div className="insight-card__content">
+                      <p className="insight-card__text">
+                        Weak area detected. Missing concepts: <strong>{gap.missing_concepts.slice(0, 3).join(', ')}</strong>
+                      </p>
+                    </div>
+                    <div className="insight-card__actions">
+                      <button 
+                        className="insight-card__button"
+                        onClick={() => handleTakeQuiz(gap)}
+                      >
+                        📝 Take Quiz
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {gaps.suggestions && gaps.suggestions.length > 0 && (
+                <div className="suggestions-box">
+                  <h3 className="suggestions-box__title">📚 Suggestions:</h3>
+                  <ul className="suggestions-box__list">
+                    {gaps.suggestions.map((suggestion, index) => (
+                      <li key={index}>{suggestion}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats Cards */}
           {stats && (
             <div className="stats">
@@ -366,6 +495,17 @@ export default function App() {
           Keep learning! Hover over highlighted terms or click for quizzes.
         </p>
       </footer>
+
+      {/* Quiz Modal */}
+      {showQuizModal && quizData && quizData.questions && quizData.questions.length > 0 && (
+        <QuizModal
+          cluster={quizData.cluster}
+          difficulty={quizData.difficulty}
+          questions={quizData.questions}
+          onClose={() => setShowQuizModal(false)}
+          onComplete={handleQuizComplete}
+        />
+      )}
     </div>
   );
 }

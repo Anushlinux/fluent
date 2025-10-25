@@ -1028,8 +1028,12 @@ async function fetchAIExplanation(text: string): Promise<void> {
       throw new Error(response.error || 'Agent call failed');
     }
   } catch (error) {
-    console.warn('[Fluent] Agent unavailable, falling back to local:', error);
-    showAIModalFallback(text);
+    console.warn('[Fluent] Agent unavailable:', error);
+    showAIModalContent({
+      explanation: "⚠️ AI Agent Offline: The AI explanation service is not running. Start the agent with 'python agent/mailbox_agent.py' to enable AI-powered explanations.",
+      concepts: [],
+      captured: false
+    });
   }
 }
 
@@ -1045,6 +1049,15 @@ function showAIModalContent(data: any): void {
     return;
   }
   
+  // Get user ID to show appropriate message
+  const storage = getExtensionStorage();
+  let userId = '';
+  if (storage) {
+    storage.local.get('fluentAuthSession').then((authData: any) => {
+      userId = authData?.fluentAuthSession?.user?.id || '';
+    });
+  }
+  
   const escapedExplanation = escapeHtml(data.explanation);
   const conceptsHtml = data.concepts && Array.isArray(data.concepts) && data.concepts.length > 0
     ? `<div class="fluent-ai-modal__concepts">
@@ -1055,39 +1068,20 @@ function showAIModalContent(data: any): void {
        </div>`
     : '';
   
+  const statusMessage = data.captured 
+    ? '✅ Saved to your knowledge graph! View on website.' 
+    : userId 
+      ? '⚠️ Failed to save. Please check connection.'
+      : 'ℹ️ Sign in to save to your graph.';
+  
   content.innerHTML = `
     <div class="fluent-ai-modal__explanation">
       <p>${escapedExplanation}</p>
     </div>
     ${conceptsHtml}
     <div class="fluent-ai-modal__status">
-      ${data.captured ? '✅ Captured to your knowledge graph' : '📝 Processed'}
+      ${statusMessage}
     </div>
-  `;
-}
-
-function showAIModalFallback(text: string): void {
-  if (!aiModal) return;
-  
-  const content = aiModal.querySelector('.fluent-ai-modal__content');
-  if (!content) return;
-  
-  const glossaryTerms = glossary.map(e => e.term);
-  const localAnalysis = tagSentence(text, glossaryTerms);
-  
-  content.innerHTML = `
-    <div class="fluent-ai-modal__explanation">
-      <p>Agent offline. Local analysis complete.</p>
-    </div>
-    ${localAnalysis.terms && localAnalysis.terms.length > 0 ? `
-      <div class="fluent-ai-modal__concepts">
-        <strong>Detected Terms:</strong>
-        <div class="fluent-ai-modal__tags">
-          ${localAnalysis.terms.map(t => `<span class="fluent-ai-modal__tag">${t}</span>`).join('')}
-        </div>
-      </div>
-    ` : ''}
-    <div class="fluent-ai-modal__status">📝 Saved locally</div>
   `;
 }
 
@@ -1165,8 +1159,12 @@ async function fetchAIExplanationForTopBar(text: string): Promise<void> {
       throw new Error(response.error || 'Agent call failed');
     }
   } catch (error) {
-    console.warn('[Fluent] Agent unavailable, falling back to local:', error);
-    showTopBarFallback(text);
+    console.warn('[Fluent] Agent unavailable:', error);
+    showTopBarContent({
+      explanation: "⚠️ AI Agent Offline: The AI explanation service is not running. Start the agent with 'python agent/mailbox_agent.py' to enable AI-powered explanations.",
+      concepts: [],
+      captured: false
+    }, text);
   }
 }
 
@@ -1179,7 +1177,17 @@ function showTopBarContent(data: any, originalText: string): void {
   // Validate data structure
   if (!data || typeof data.explanation !== 'string') {
     console.error('[Fluent] Invalid agent response:', data);
-    showTopBarFallback(originalText);
+    // Show error in top bar
+    if (aiTopBar) {
+      const content = aiTopBar.querySelector('.fluent-ai-topbar__content');
+      if (content) {
+        content.innerHTML = `
+          <div class="fluent-ai-topbar__explanation">
+            <p>⚠️ Error: Invalid response from AI agent</p>
+          </div>
+        `;
+      }
+    }
     return;
   }
   
@@ -1213,46 +1221,6 @@ function showTopBarContent(data: any, originalText: string): void {
   if (detailsBtn) {
     detailsBtn.addEventListener('click', () => {
       openAIModal(originalText, currentSelection!.range);
-    });
-  }
-}
-
-function showTopBarFallback(text: string): void {
-  if (!aiTopBar) return;
-  
-  const content = aiTopBar.querySelector('.fluent-ai-topbar__content');
-  if (!content) return;
-  
-  const glossaryTerms = glossary.map(e => e.term);
-  const localAnalysis = tagSentence(text, glossaryTerms);
-  
-  content.innerHTML = `
-    <div class="fluent-ai-topbar__explanation">
-      <p>Agent offline. Local analysis complete.</p>
-    </div>
-    ${localAnalysis.terms && localAnalysis.terms.length > 0 ? `
-      <div class="fluent-ai-topbar__concepts">
-        <div class="fluent-ai-topbar__tags">
-          ${localAnalysis.terms.map(t => `<span class="fluent-ai-topbar__tag">${t}</span>`).join('')}
-        </div>
-      </div>
-    ` : ''}
-    <div class="fluent-ai-topbar__footer">
-      <button class="fluent-ai-topbar__details-btn">View Details</button>
-    </div>
-  `;
-  
-  // Animate height expansion
-  requestAnimationFrame(() => {
-    const contentHeight = content.scrollHeight;
-    aiTopBar!.style.height = `${Math.min(contentHeight + 60, window.innerHeight * 0.35)}px`;
-  });
-  
-  // Add details button handler
-  const detailsBtn = content.querySelector('.fluent-ai-topbar__details-btn');
-  if (detailsBtn) {
-    detailsBtn.addEventListener('click', () => {
-      openAIModal(text, currentSelection!.range);
     });
   }
 }

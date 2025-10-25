@@ -17,6 +17,9 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import { GraphData, GraphNode as GraphNodeType, GraphEdge as GraphEdgeType } from '@/lib/graphTypes';
 import TopicNode from './TopicNode';
 import SentenceNode from './SentenceNode';
+import { ToastContainer, ToastData } from './ToastNotification';
+import { GraphChat } from './GraphChat';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 const elk = new ELK();
 
@@ -35,6 +38,89 @@ export default function GraphViewer({ data }: GraphViewerProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<GraphNodeType | null>(null);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get current user ID
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserId(user?.id || null);
+      } catch (error) {
+        console.error('[Graph Viewer] Failed to get user ID:', error);
+      }
+    };
+    fetchUserId();
+  }, []);
+
+  // Subscribe to real-time insights
+  useEffect(() => {
+    if (!userId) return;
+
+    const supabase = getSupabaseBrowserClient();
+
+    // Subscribe to insights table
+    const channel = supabase
+      .channel('insights_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'insights',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log('[Graph Viewer] New insight received:', payload.new);
+          const insight = payload.new as any;
+
+          // Create toast notification
+          const toast: ToastData = {
+            id: insight.id,
+            type: insight.insight_type === 'gap_detected' ? 'gap_detected' :
+                  insight.insight_type === 'quiz_suggested' ? 'quiz_suggested' :
+                  insight.insight_type === 'milestone_reached' ? 'milestone_reached' : 'info',
+            title: insight.insight_type === 'gap_detected' ? '💡 Knowledge Gap Detected' :
+                   insight.insight_type === 'quiz_suggested' ? '📝 Quiz Ready' :
+                   insight.insight_type === 'milestone_reached' ? '🏆 Milestone!' : 'New Insight',
+            message: insight.content,
+            actions: insight.insight_type === 'gap_detected' ? [
+              {
+                label: 'Explore',
+                onClick: () => {
+                  // Filter graph to show gap cluster (if metadata has cluster)
+                  const cluster = insight.metadata?.cluster;
+                  if (cluster) {
+                    console.log(`[Graph Viewer] Filtering to cluster: ${cluster}`);
+                    // TODO: Implement cluster filtering
+                  }
+                },
+              },
+              {
+                label: 'Take Quiz',
+                onClick: () => {
+                  const cluster = insight.metadata?.cluster || 'General';
+                  console.log(`[Graph Viewer] Opening quiz for: ${cluster}`);
+                  // TODO: Open quiz modal
+                },
+              },
+            ] : undefined,
+          };
+
+          setToasts((prev) => [...prev, toast]);
+        }
+      )
+      .subscribe();
+
+    console.log('[Graph Viewer] Subscribed to insights');
+
+    return () => {
+      supabase.removeChannel(channel);
+      console.log('[Graph Viewer] Unsubscribed from insights');
+    };
+  }, [userId]);
 
   // Convert graph data to React Flow format with ELK layout
   useEffect(() => {
@@ -120,12 +206,22 @@ export default function GraphViewer({ data }: GraphViewerProps) {
     setSelectedNode(node.data as GraphNodeType);
   }, []);
 
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
+
+  const handleInsightNode = (content: string) => {
+    console.log('[Graph Viewer] Creating insight node:', content);
+    // TODO: Insert insight as new node in graph
+    // This would require calling the graph processing logic to add a new node
+  };
+
   if (loading) {
     return (
-      <div className="h-[600px] bg-white rounded-lg shadow-md flex items-center justify-center">
+      <div className="h-[600px] bg-black border border-white/20 rounded-lg flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Building graph layout...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white/80">Building graph layout...</p>
         </div>
       </div>
     );
@@ -133,7 +229,7 @@ export default function GraphViewer({ data }: GraphViewerProps) {
 
   return (
     <div className="relative">
-      <div className="bg-white rounded-lg shadow-md overflow-hidden" style={{ height: '600px' }}>
+      <div className="bg-black border border-white/20 rounded-lg overflow-hidden" style={{ height: '600px' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -144,29 +240,31 @@ export default function GraphViewer({ data }: GraphViewerProps) {
           fitView
           minZoom={0.1}
           maxZoom={2}
+          style={{ background: '#000000' }}
         >
-          <Background color="#f3f4f6" gap={16} />
-          <Controls />
+          <Background color="#ffffff" gap={16} style={{ opacity: 0.1 }} />
+          <Controls style={{ button: { backgroundColor: '#000000', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)' } }} />
           <MiniMap
             nodeColor={(node) => {
-              if (node.type === 'topic') return '#667eea';
-              return '#e0e7ff';
+              if (node.type === 'topic') return '#ffffff';
+              return '#666666';
             }}
-            maskColor="rgba(0, 0, 0, 0.1)"
+            maskColor="rgba(255, 255, 255, 0.1)"
+            style={{ backgroundColor: '#000000', border: '1px solid rgba(255,255,255,0.2)' }}
           />
         </ReactFlow>
       </div>
 
       {/* Node Details Sidebar */}
       {selectedNode && (
-        <div className="mt-4 bg-white rounded-lg shadow-md p-6">
+        <div className="mt-4 bg-black border border-white/20 rounded-lg p-6">
           <div className="flex items-start justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-white">
               {selectedNode.type === 'topic' ? '📁 Topic' : '📝 Sentence'}
             </h3>
             <button
               onClick={() => setSelectedNode(null)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-white/60 hover:text-white"
             >
               ✕
             </button>
@@ -174,25 +272,25 @@ export default function GraphViewer({ data }: GraphViewerProps) {
 
           {selectedNode.type === 'topic' ? (
             <div>
-              <div className="text-xl font-bold text-indigo-600 mb-2">
+              <div className="text-xl font-bold text-white mb-2">
                 {selectedNode.label}
               </div>
             </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <div className="text-sm font-medium text-gray-500 mb-1">Sentence</div>
-                <div className="text-gray-900">{selectedNode.label}</div>
+                <div className="text-sm font-medium text-white/70 mb-1">Sentence</div>
+                <div className="text-white">{selectedNode.label}</div>
               </div>
 
               {selectedNode.terms && selectedNode.terms.length > 0 && (
                 <div>
-                  <div className="text-sm font-medium text-gray-500 mb-2">Terms</div>
+                  <div className="text-sm font-medium text-white/70 mb-2">Terms</div>
                   <div className="flex flex-wrap gap-2">
                     {selectedNode.terms.map((term) => (
                       <span
                         key={term}
-                        className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium"
+                        className="px-3 py-1 bg-white/10 border border-white/30 text-white rounded-full text-sm font-medium"
                       >
                         {term}
                       </span>
@@ -204,45 +302,51 @@ export default function GraphViewer({ data }: GraphViewerProps) {
               <div className="flex items-center gap-4 text-sm">
                 {selectedNode.context && (
                   <div>
-                    <span className="text-gray-500">Context:</span>{' '}
-                    <span className="font-medium text-gray-900">{selectedNode.context}</span>
+                    <span className="text-white/70">Context:</span>{' '}
+                    <span className="font-medium text-white">{selectedNode.context}</span>
                   </div>
                 )}
                 {selectedNode.framework && (
                   <div>
-                    <span className="text-gray-500">Framework:</span>{' '}
-                    <span className="font-medium text-gray-900">{selectedNode.framework}</span>
+                    <span className="text-white/70">Framework:</span>{' '}
+                    <span className="font-medium text-white">{selectedNode.framework}</span>
                   </div>
                 )}
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="text-sm">
-                  <span className="text-gray-500">Confidence:</span>{' '}
+                  <span className="text-white/70">Confidence:</span>{' '}
                   <span
                     className={`font-medium ${
                       selectedNode.metadata.confidence >= 70
-                        ? 'text-green-600'
+                        ? 'text-green-400'
                         : selectedNode.metadata.confidence >= 50
-                        ? 'text-yellow-600'
-                        : 'text-red-600'
+                        ? 'text-yellow-400'
+                        : 'text-red-400'
                     }`}
                   >
                     {selectedNode.metadata.confidence}%
                   </span>
                 </div>
                 {selectedNode.metadata.quizCompleted && (
-                  <div className="text-sm text-green-600 font-medium">✅ Quiz Completed</div>
+                  <div className="text-sm text-green-400 font-medium">✅ Quiz Completed</div>
                 )}
               </div>
 
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-white/60">
                 Captured: {new Date(selectedNode.timestamp).toLocaleString()}
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
+
+      {/* Graph Chat */}
+      <GraphChat userId={userId} onInsightNode={handleInsightNode} />
     </div>
   );
 }
@@ -250,13 +354,13 @@ export default function GraphViewer({ data }: GraphViewerProps) {
 function getEdgeColor(type: 'term-match' | 'context-match' | 'both'): string {
   switch (type) {
     case 'both':
-      return '#667eea'; // Indigo
+      return '#ffffff'; // White (high opacity for strongest connections)
     case 'term-match':
-      return '#a78bfa'; // Purple
+      return 'rgba(255, 255, 255, 0.6)'; // White with 60% opacity
     case 'context-match':
-      return '#c4b5fd'; // Light purple
+      return 'rgba(255, 255, 255, 0.4)'; // White with 40% opacity
     default:
-      return '#d1d5db'; // Gray
+      return 'rgba(255, 255, 255, 0.2)'; // White with 20% opacity
   }
 }
 

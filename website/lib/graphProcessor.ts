@@ -162,6 +162,7 @@ export function processSentencesIntoGraph(sentences: CapturedSentence[]): GraphD
     metadata: {
       confidence: sentence.confidence,
       quizCompleted: false, // TODO: Link with quiz completion data if available
+      explanation: sentence.asi_extract?.explanation || null,
     },
   }));
   

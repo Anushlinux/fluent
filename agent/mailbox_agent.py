@@ -78,6 +78,33 @@ class GraphAnalysisResponse(Model):
     suggestions: list
     timestamp: int
 
+class GapDetectionRequest(Model):
+    user_id: str
+    user_xp: int = 0
+    history_context: str = ""
+
+class GapDetectionResponse(Model):
+    gaps: list  # [{cluster: str, missing_concepts: list, confidence: float}]
+    suggestions: list  # [str]
+    timestamp: int
+
+class QuizGenerationRequest(Model):
+    user_id: str
+    gap_cluster: str
+    difficulty: int = 2  # 1-3
+
+class QuizQuestion(Model):
+    question: str
+    options: list  # [str, str, str, str]
+    correct: str  # 'a', 'b', 'c', or 'd'
+    explanation: str
+
+class QuizGenerationResponse(Model):
+    questions: list  # [QuizQuestion]
+    cluster: str
+    difficulty: int
+    timestamp: int
+
 # ======= METTA KNOWLEDGE GRAPH =======
 metta = MeTTa()
 
@@ -423,7 +450,12 @@ async def store_to_supabase(sentence: str, url: str, user_id: str, analysis: dic
             "framework": analysis.get("framework"),
             "confidence": 85,  # Default confidence
             "timestamp": datetime.utcnow().isoformat(),
-            "url": url
+            "url": url,
+            "asi_extract": {
+                "explanation": analysis.get("explanation", ""),
+                "concepts": analysis.get("terms", []),
+                "relations": analysis.get("relations", [])
+            }
         }
         
         result = supabase_client.table("captured_sentences").insert(data).execute()
@@ -432,6 +464,164 @@ async def store_to_supabase(sentence: str, url: str, user_id: str, analysis: dic
     except Exception as e:
         print(f"❌ Supabase storage error: {e}")
         return False
+
+
+async def fetch_user_graph_from_supabase(user_id: str) -> dict:
+    """Fetch user's knowledge graph from Supabase."""
+    if not supabase_client or not user_id:
+        return {"nodes": [], "edges": []}
+    
+    try:
+        # Fetch nodes
+        nodes_result = supabase_client.table("graph_nodes").select("*").eq("user_id", user_id).execute()
+        nodes = nodes_result.data if nodes_result.data else []
+        
+        # Fetch edges
+        edges_result = supabase_client.table("graph_edges").select("*").eq("user_id", user_id).execute()
+        edges = edges_result.data if edges_result.data else []
+        
+        return {"nodes": nodes, "edges": edges}
+    except Exception as e:
+        print(f"❌ Error fetching user graph: {e}")
+        return {"nodes": [], "edges": []}
+
+
+async def detect_weak_clusters(graph: dict) -> list:
+    """Analyze graph to find weak clusters (low edge weights)."""
+    weak_clusters = []
+    edges = graph.get("edges", [])
+    nodes = graph.get("nodes", [])
+    
+    # Group edges by context/cluster
+    cluster_edges = {}
+    for edge in edges:
+        # Find source node context
+        source_node = next((n for n in nodes if n.get("id") == edge.get("source_id")), None)
+        if source_node:
+            context = source_node.get("context", "General")
+            if context not in cluster_edges:
+                cluster_edges[context] = []
+            cluster_edges[context].append(edge)
+    
+    # Find clusters with weak connections (avg weight < 0.5)
+    for cluster, edges_list in cluster_edges.items():
+        if not edges_list:
+            continue
+        
+        avg_weight = sum(float(e.get("weight", 0)) for e in edges_list) / len(edges_list)
+        if avg_weight < 0.5:
+            weak_clusters.append({
+                "cluster": cluster,
+                "avg_weight": avg_weight,
+                "edge_count": len(edges_list)
+            })
+    
+    return weak_clusters
+
+
+async def store_insight_to_supabase(user_id: str, insight_type: str, content: str, metadata: dict):
+    """Store insight to Supabase insights table."""
+    if not supabase_client or not user_id:
+        return False
+    
+    try:
+        data = {
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "insight_type": insight_type,
+            "content": content,
+            "metadata": metadata,
+            "is_read": False,
+            "is_dismissed": False,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        result = supabase_client.table("insights").insert(data).execute()
+        print(f"✅ Insight stored: {insight_type} for user {user_id[:8]}...")
+        return True
+    except Exception as e:
+        print(f"❌ Error storing insight: {e}")
+        return False
+
+
+async def fetch_sentences_for_cluster(user_id: str, cluster: str) -> list:
+    """Fetch user's captured sentences for a specific cluster/context."""
+    if not supabase_client or not user_id:
+        return []
+    
+    try:
+        result = supabase_client.table("captured_sentences")\
+            .select("*")\
+            .eq("user_id", user_id)\
+            .eq("context", cluster)\
+            .limit(10)\
+            .execute()
+        
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"❌ Error fetching sentences for cluster: {e}")
+        return []
+
+
+def generate_quiz_with_asi(cluster: str, sentences: list, difficulty: int) -> list:
+    """Generate quiz questions using ASI:One based on cluster and sentences."""
+    try:
+        # Prepare context from sentences
+        sentences_text = "\n".join([s.get("sentence", "")[:100] for s in sentences[:5]])
+        
+        difficulty_map = {1: "beginner", 2: "intermediate", 3: "advanced"}
+        difficulty_level = difficulty_map.get(difficulty, "intermediate")
+        
+        prompt = f"""Generate 3 multiple-choice quiz questions about {cluster} concepts at {difficulty_level} level.
+
+Context sentences:
+{sentences_text}
+
+Respond with ONLY this JSON structure (no markdown, no explanation):
+{{
+  "questions": [
+    {{
+      "question": "Question text here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct": "a",
+      "explanation": "Why this answer is correct"
+    }}
+  ]
+}}
+
+Make questions relevant to {cluster} and appropriate for {difficulty_level} learners."""
+        
+        response = requests.post(
+            ASI_ONE_API_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {ASI_ONE_API_KEY}"
+            },
+            json={
+                "model": "asi1-mini",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a quiz generation assistant. Generate clear, educational multiple-choice questions. Always respond with valid JSON only."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.8,
+                "max_tokens": 800
+            },
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        content = result['choices'][0]['message']['content']
+        
+        parsed = validate_and_parse_json(content, {"questions": []})
+        return parsed.get("questions", [])
+    except Exception as e:
+        print(f"[ASI:One Quiz Generation Error]: {e}")
+        return []
 
 
 # ======= CHAT PROTOCOL =======
@@ -543,6 +733,9 @@ async def handle_explain_sentence(ctx: Context, req: SentenceRequest) -> Sentenc
         known_concepts = analysis.get("terms", [])
         explanation = asi_one_explain(req.sentence, known_concepts)
         
+        # Add explanation to analysis for storage
+        analysis["explanation"] = explanation
+        
         # Add to MeTTa knowledge graph
         add_to_metta_kg(analysis)
         
@@ -622,12 +815,206 @@ async def handle_graph_analysis(ctx: Context, req: GraphAnalysisRequest) -> Grap
             timestamp=int(time.time())
         )
 
+@agent.on_rest_post("/detect-gaps", GapDetectionRequest, GapDetectionResponse)
+async def handle_detect_gaps(ctx: Context, req: GapDetectionRequest) -> GapDetectionResponse:
+    """
+    REST endpoint for proactive gap detection in user's knowledge graph.
+    Identifies weak clusters and suggests areas to improve.
+    """
+    ctx.logger.info(f"🔍 Gap detection requested for user: {req.user_id[:8]}...")
+    
+    try:
+        # Fetch user's graph from Supabase
+        user_graph = await fetch_user_graph_from_supabase(req.user_id)
+        
+        if not user_graph.get("nodes"):
+            return GapDetectionResponse(
+                gaps=[],
+                suggestions=["Start capturing more sentences to build your knowledge graph!"],
+                timestamp=int(time.time())
+            )
+        
+        # Detect weak clusters (edges with weight < 0.5)
+        weak_clusters = await detect_weak_clusters(user_graph)
+        
+        # Use ASI:One asi1-graph to analyze gaps
+        graph_json = json.dumps({
+            "nodes_count": len(user_graph.get("nodes", [])),
+            "edges_count": len(user_graph.get("edges", [])),
+            "weak_clusters": weak_clusters,
+            "user_xp": req.user_xp
+        })
+        
+        prompt = f"""Analyze this Web3 knowledge graph for learning gaps.
+
+Graph summary: {graph_json}
+
+Respond with ONLY this JSON (no markdown):
+{{
+  "gaps": [
+    {{
+      "cluster": "DeFi",
+      "missing_concepts": ["yield farming", "liquidity pools"],
+      "confidence": 0.7
+    }}
+  ],
+  "suggestions": ["suggestion 1", "suggestion 2"]
+}}
+
+Focus on actionable gaps that would strengthen the weakest clusters."""
+        
+        response = requests.post(
+            ASI_ONE_API_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {ASI_ONE_API_KEY}"
+            },
+            json={
+                "model": "asi1-graph",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a knowledge graph analyst specializing in identifying learning gaps. Respond with valid JSON only."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.7,
+                "max_tokens": 500
+            },
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        content = result['choices'][0]['message']['content']
+        
+        parsed = validate_and_parse_json(content, {"gaps": [], "suggestions": []})
+        gaps = parsed.get("gaps", [])
+        suggestions = parsed.get("suggestions", [])
+        
+        # Store insights to Supabase for each gap
+        for gap in gaps:
+            cluster = gap.get("cluster", "Unknown")
+            missing = ", ".join(gap.get("missing_concepts", [])[:3])
+            await store_insight_to_supabase(
+                user_id=req.user_id,
+                insight_type="gap_detected",
+                content=f"Weak cluster: {cluster}. Missing concepts: {missing}",
+                metadata={
+                    "cluster": cluster,
+                    "missing_concepts": gap.get("missing_concepts", []),
+                    "confidence": gap.get("confidence", 0),
+                    "suggestions": suggestions
+                }
+            )
+        
+        ctx.logger.info(f"✅ Detected {len(gaps)} gaps for user {req.user_id[:8]}")
+        
+        return GapDetectionResponse(
+            gaps=gaps,
+            suggestions=suggestions,
+            timestamp=int(time.time())
+        )
+    except Exception as e:
+        ctx.logger.error(f"❌ Error in gap detection: {e}")
+        return GapDetectionResponse(
+            gaps=[],
+            suggestions=[f"Error detecting gaps: {str(e)}"],
+            timestamp=int(time.time())
+        )
+
+@agent.on_rest_post("/generate-quiz", QuizGenerationRequest, QuizGenerationResponse)
+async def handle_generate_quiz(ctx: Context, req: QuizGenerationRequest) -> QuizGenerationResponse:
+    """
+    REST endpoint for generating adaptive quizzes based on knowledge gaps.
+    Uses ASI:One to create personalized questions.
+    """
+    ctx.logger.info(f"📝 Quiz generation requested: {req.gap_cluster} (difficulty {req.difficulty})")
+    
+    try:
+        # Fetch sentences for this cluster
+        sentences = await fetch_sentences_for_cluster(req.user_id, req.gap_cluster)
+        
+        if not sentences:
+            # Fallback: generate generic questions
+            ctx.logger.warning(f"No sentences found for cluster {req.gap_cluster}, generating generic quiz")
+            sentences = [{"sentence": f"This is about {req.gap_cluster} concepts in Web3."}]
+        
+        # Generate quiz using ASI:One
+        questions_raw = generate_quiz_with_asi(req.gap_cluster, sentences, req.difficulty)
+        
+        # Convert to QuizQuestion models
+        questions = []
+        for q in questions_raw:
+            if isinstance(q, dict) and "question" in q:
+                questions.append(q)
+        
+        if not questions:
+            # Fallback quiz
+            questions = [{
+                "question": f"What is a key concept in {req.gap_cluster}?",
+                "options": [
+                    "Decentralization",
+                    "Centralization",
+                    "Traditional banking",
+                    "None of the above"
+                ],
+                "correct": "a",
+                "explanation": f"{req.gap_cluster} emphasizes decentralized systems."
+            }]
+        
+        # Store quiz suggestion as insight
+        await store_insight_to_supabase(
+            user_id=req.user_id,
+            insight_type="quiz_suggested",
+            content=f"Quiz generated for {req.gap_cluster} cluster",
+            metadata={
+                "cluster": req.gap_cluster,
+                "difficulty": req.difficulty,
+                "question_count": len(questions)
+            }
+        )
+        
+        ctx.logger.info(f"✅ Generated {len(questions)} questions for {req.gap_cluster}")
+        
+        return QuizGenerationResponse(
+            questions=questions,
+            cluster=req.gap_cluster,
+            difficulty=req.difficulty,
+            timestamp=int(time.time())
+        )
+    except Exception as e:
+        ctx.logger.error(f"❌ Error generating quiz: {e}")
+        return QuizGenerationResponse(
+            questions=[],
+            cluster=req.gap_cluster,
+            difficulty=req.difficulty,
+            timestamp=int(time.time())
+        )
+
+# ======= FUTURE: RAG IMPLEMENTATION =======
+# TODO: Implement RAG after vector embeddings are populated
+# async def rag_query(query: str, user_id: str) -> str:
+#     """
+#     Retrieval-Augmented Generation using vector similarity search.
+#     
+#     Flow:
+#     1. Generate query embedding using OpenAI text-embedding-3-small
+#     2. Search Supabase: SELECT * FROM captured_sentences 
+#        WHERE user_id = ? ORDER BY embedding <-> query_embedding LIMIT 5
+#     3. Pass retrieved sentences as context to ASI:One for augmented response
+#     """
+#     pass
+
 print(f"🚀 Fluent Advanced Agent Starting...")
 print(f"📧 Agent address: {agent.address}")
 print(f"🌐 Available at: http://0.0.0.0:8010")
 print(f"🔑 ASI:One API: {'✅ Set' if ASI_ONE_API_KEY else '❌ Not set'}")
 print(f"🧠 MeTTa Knowledge Graph: Initialized")
 print(f"📊 ASI:One Models: asi1-mini (extraction), asi1-graph (reasoning)")
+print(f"🎯 REST Endpoints: /explain-sentence, /graph-analysis, /detect-gaps, /generate-quiz")
+print(f"💡 Proactive Nudges: Enabled (gap detection + quiz generation)")
 
 if __name__ == "__main__":
     try:

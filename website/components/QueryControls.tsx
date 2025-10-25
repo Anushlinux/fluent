@@ -85,23 +85,23 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Explore Your Graph</h2>
+    <div className="bg-black border border-white/20 rounded-lg p-6">
+      <h2 className="text-lg font-semibold text-white mb-4">Explore Your Graph</h2>
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Topic Filter */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-white/90 mb-2">
             Filter by Topic
           </label>
           <select
             value={selectedTopic}
             onChange={(e) => handleTopicChange(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-4 py-2 bg-black border border-white/30 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white"
           >
             {topics.map((topic) => (
-              <option key={topic} value={topic}>
+              <option key={topic} value={topic} className="bg-black">
                 {topic}
               </option>
             ))}
@@ -110,17 +110,17 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
         {/* Framework Filter */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-white/90 mb-2">
             Filter by Framework
           </label>
           <select
             value={selectedFramework}
             onChange={(e) => handleFrameworkChange(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-4 py-2 bg-black border border-white/30 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white disabled:opacity-50"
             disabled={frameworks.length <= 1}
           >
             {frameworks.map((framework) => (
-              <option key={framework} value={framework}>
+              <option key={framework} value={framework} className="bg-black">
                 {framework}
               </option>
             ))}
@@ -130,7 +130,7 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
       {/* Pre-Built Queries */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white/90 mb-2">
           Quick Views
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -138,8 +138,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('journey')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'journey'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-white text-black'
+                : 'bg-black border border-white/30 text-white hover:bg-white/10'
             }`}
           >
             📚 My Journey
@@ -149,8 +149,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('quiz')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'quiz'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-white text-black'
+                : 'bg-black border border-white/30 text-white hover:bg-white/10'
             }`}
           >
             ✅ Quiz Trail
@@ -160,8 +160,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('confidence')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'confidence'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-white text-black'
+                : 'bg-black border border-white/30 text-white hover:bg-white/10'
             }`}
           >
             ⭐ High Confidence
@@ -171,8 +171,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('recent')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'recent'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-white text-black'
+                : 'bg-black border border-white/30 text-white hover:bg-white/10'
             }`}
           >
             🕐 Last 7 Days
@@ -182,10 +182,10 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
       {/* Reset Button */}
       {(selectedTopic !== 'All' || selectedFramework !== 'All' || activeQuery) && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-white/10">
           <button
             onClick={resetFilters}
-            className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            className="text-sm text-white hover:text-white/80 font-medium underline"
           >
             Reset All Filters
           </button>
