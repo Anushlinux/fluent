@@ -50,9 +50,38 @@ export default defineBackground({
         });
       return true; // Required for async response
     }
+    
+    // Handle agent API calls from content script
+    if (message.action === 'callAgent') {
+      callAgentAPI(message.data)
+        .then(data => sendResponse({ success: true, data }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true; // Keep channel open for async response
+    }
   });
   },
 });
+
+/**
+ * Call agent API endpoint
+ */
+async function callAgentAPI(data: {
+  sentence: string;
+  url: string;
+  user_id: string;
+}): Promise<any> {
+  const response = await fetch('http://localhost:8010/explain-sentence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agent returned ${response.status}`);
+  }
+
+  return await response.json();
+}
 
 /**
  * Restore auth session on startup

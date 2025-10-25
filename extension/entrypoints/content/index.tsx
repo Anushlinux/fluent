@@ -57,6 +57,15 @@ let currentToast: HTMLElement | null = null;
 const SENTENCE_BOUNDARY_REGEX = /[.!?]/;
 const SENTENCE_CHAR_LIMIT = 100;
 
+/**
+ * Safely escape HTML characters to prevent injection
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 const getExtensionStorage = (): typeof chrome.storage | undefined => {
   // Prefer the typed chrome storage API when available
   if (chrome?.storage?.local) {
@@ -124,6 +133,9 @@ export default defineContentScript({
     // Initialize context menu for sentence capture
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('mousedown', handlePointerDown, true);
+
+    // Add text selection listener for AI explanations
+    document.addEventListener('mouseup', handleTextSelectionForButton);
 
     // Listen for auth messages from website
     window.addEventListener('message', async (event) => {
@@ -868,6 +880,403 @@ async function handleCaptureFromContextMenu(): Promise<void> {
   lastSelectedSentence = sentence;
 }
 
+/**
+ * Handle text selection for instant AI explanation
+ */
+let selectionButton: HTMLElement | null = null;
+let selectionButtonTimeout: number | null = null;
+let currentSelection: { text: string; range: Range } | null = null;
+let aiModal: HTMLElement | null = null;
+let aiTopBar: HTMLElement | null = null;
+
+function handleTextSelectionForButton(): void {
+  // Clear existing timeout
+  if (selectionButtonTimeout) {
+    clearTimeout(selectionButtonTimeout);
+    selectionButtonTimeout = null;
+  }
+  
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) {
+    hideSelectionButton();
+    return;
+  }
+
+  const selectedText = selection.toString().trim();
+  if (!selectedText || selectedText.length < 15) {
+    hideSelectionButton();
+    return;
+  }
+
+  if (isSelectionInsideExtension(selection)) {
+    hideSelectionButton();
+    return;
+  }
+
+  // Store selection
+  const range = selection.getRangeAt(0);
+  currentSelection = { text: selectedText, range: range.cloneRange() };
+
+  // Show button after 500ms delay
+  selectionButtonTimeout = window.setTimeout(() => {
+    showSelectionButton(range);
+  }, 500);
+}
+
+function showSelectionButton(range: Range): void {
+  hideSelectionButton();
+
+  const rect = range.getBoundingClientRect();
+  
+  selectionButton = document.createElement('button');
+  selectionButton.className = 'fluent-selection-button';
+  selectionButton.innerHTML = '✨'; // Or 'AI' text
+  selectionButton.style.position = 'absolute';
+  selectionButton.style.left = `${rect.right + window.scrollX + 8}px`;
+  selectionButton.style.top = `${rect.top + window.scrollY + (rect.height / 2) - 20}px`;
+  
+  selectionButton.addEventListener('click', handleSelectionButtonClick);
+  
+  document.body.appendChild(selectionButton);
+}
+
+function hideSelectionButton(): void {
+  if (selectionButton) {
+    selectionButton.remove();
+    selectionButton = null;
+  }
+}
+
+function handleSelectionButtonClick(e: Event): void {
+  e.stopPropagation();
+  
+  if (!currentSelection) return;
+  
+  // Show top bar instead of modal
+  showAITopBar(currentSelection.text);
+}
+
+function openAIModal(text: string, _range: Range): void {
+  closeAIModal();
+  
+  // Create modal
+  aiModal = document.createElement('div');
+  aiModal.className = 'fluent-ai-modal';
+  
+  aiModal.innerHTML = `
+    <div class="fluent-ai-modal__header">
+      <span class="fluent-ai-modal__title">AI Explanation</span>
+      <button class="fluent-ai-modal__close">×</button>
+    </div>
+    <div class="fluent-ai-modal__content">
+      <div class="fluent-ai-modal__loading">
+        <div class="fluent-ai-modal__spinner"></div>
+        <p>Analyzing text...</p>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(aiModal);
+  
+  // Add close handler
+  const closeBtn = aiModal.querySelector('.fluent-ai-modal__close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeAIModal);
+  }
+  
+  // Fetch AI explanation
+  fetchAIExplanation(text);
+  
+  // Add click listener to close modal on outside click
+  setTimeout(() => {
+    document.addEventListener('click', handleModalOutsideClick);
+  }, 0);
+}
+
+function handleModalOutsideClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement;
+  
+  if (
+    aiModal && 
+    !aiModal.contains(target) && 
+    !target.closest('.fluent-selection-button')
+  ) {
+    closeAIModal();
+    document.removeEventListener('click', handleModalOutsideClick);
+  }
+}
+
+async function fetchAIExplanation(text: string): Promise<void> {
+  try {
+    const storage = getExtensionStorage();
+    let userId = '';
+    if (storage) {
+      const authData = await storage.local.get('fluentAuthSession');
+      userId = authData?.fluentAuthSession?.user?.id || '';
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      action: 'callAgent',
+      data: { sentence: text, url: window.location.href, user_id: userId }
+    });
+
+    if (response.success && response.data) {
+      console.log('[Fluent] Agent response received (modal):', response.data);
+      showAIModalContent(response.data);
+    } else {
+      console.error('[Fluent] Agent response failed (modal):', response);
+      throw new Error(response.error || 'Agent call failed');
+    }
+  } catch (error) {
+    console.warn('[Fluent] Agent unavailable, falling back to local:', error);
+    showAIModalFallback(text);
+  }
+}
+
+function showAIModalContent(data: any): void {
+  if (!aiModal) return;
+  
+  const content = aiModal.querySelector('.fluent-ai-modal__content');
+  if (!content) return;
+  
+  // Validate data structure
+  if (!data || typeof data.explanation !== 'string') {
+    console.error('[Fluent] Invalid agent response:', data);
+    return;
+  }
+  
+  const escapedExplanation = escapeHtml(data.explanation);
+  const conceptsHtml = data.concepts && Array.isArray(data.concepts) && data.concepts.length > 0
+    ? `<div class="fluent-ai-modal__concepts">
+         <strong>Key Concepts:</strong>
+         <div class="fluent-ai-modal__tags">
+           ${data.concepts.map((c: string) => `<span class="fluent-ai-modal__tag">${escapeHtml(c)}</span>`).join('')}
+         </div>
+       </div>`
+    : '';
+  
+  content.innerHTML = `
+    <div class="fluent-ai-modal__explanation">
+      <p>${escapedExplanation}</p>
+    </div>
+    ${conceptsHtml}
+    <div class="fluent-ai-modal__status">
+      ${data.captured ? '✅ Captured to your knowledge graph' : '📝 Processed'}
+    </div>
+  `;
+}
+
+function showAIModalFallback(text: string): void {
+  if (!aiModal) return;
+  
+  const content = aiModal.querySelector('.fluent-ai-modal__content');
+  if (!content) return;
+  
+  const glossaryTerms = glossary.map(e => e.term);
+  const localAnalysis = tagSentence(text, glossaryTerms);
+  
+  content.innerHTML = `
+    <div class="fluent-ai-modal__explanation">
+      <p>Agent offline. Local analysis complete.</p>
+    </div>
+    ${localAnalysis.terms && localAnalysis.terms.length > 0 ? `
+      <div class="fluent-ai-modal__concepts">
+        <strong>Detected Terms:</strong>
+        <div class="fluent-ai-modal__tags">
+          ${localAnalysis.terms.map(t => `<span class="fluent-ai-modal__tag">${t}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}
+    <div class="fluent-ai-modal__status">📝 Saved locally</div>
+  `;
+}
+
+function closeAIModal(): void {
+  if (aiModal) {
+    aiModal.remove();
+    aiModal = null;
+  }
+  hideSelectionButton();
+  currentSelection = null;
+  document.removeEventListener('click', handleModalOutsideClick);
+}
+
+function showAITopBar(text: string): void {
+  closeAITopBar();
+  
+  // Create top bar
+  aiTopBar = document.createElement('div');
+  aiTopBar.className = 'fluent-ai-topbar';
+  
+  aiTopBar.innerHTML = `
+    <div class="fluent-ai-topbar__header">
+      <div class="fluent-ai-topbar__title">
+        <span class="fluent-ai-topbar__icon">✨</span>
+        <span class="fluent-ai-topbar__text">AI Analysis</span>
+      </div>
+      <div class="fluent-ai-topbar__actions">
+        <button class="fluent-ai-topbar__close" aria-label="Close">×</button>
+      </div>
+    </div>
+    <div class="fluent-ai-topbar__content">
+      <div class="fluent-ai-topbar__loading">
+        <div class="fluent-ai-topbar__spinner"></div>
+        <p>Analyzing text...</p>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(aiTopBar);
+  
+  // Add close handler
+  const closeBtn = aiTopBar.querySelector('.fluent-ai-topbar__close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeAITopBar);
+  }
+  
+  // Fetch AI explanation
+  fetchAIExplanationForTopBar(text);
+  
+  // Add outside click listener
+  setTimeout(() => {
+    document.addEventListener('click', handleTopBarOutsideClick);
+  }, 0);
+}
+
+async function fetchAIExplanationForTopBar(text: string): Promise<void> {
+  try {
+    const storage = getExtensionStorage();
+    let userId = '';
+    if (storage) {
+      const authData = await storage.local.get('fluentAuthSession');
+      userId = authData?.fluentAuthSession?.user?.id || '';
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      action: 'callAgent',
+      data: { sentence: text, url: window.location.href, user_id: userId }
+    });
+
+    if (response.success && response.data) {
+      console.log('[Fluent] Agent response received:', response.data);
+      showTopBarContent(response.data, text);
+    } else {
+      console.error('[Fluent] Agent response failed:', response);
+      throw new Error(response.error || 'Agent call failed');
+    }
+  } catch (error) {
+    console.warn('[Fluent] Agent unavailable, falling back to local:', error);
+    showTopBarFallback(text);
+  }
+}
+
+function showTopBarContent(data: any, originalText: string): void {
+  if (!aiTopBar) return;
+  
+  const content = aiTopBar.querySelector('.fluent-ai-topbar__content');
+  if (!content) return;
+  
+  // Validate data structure
+  if (!data || typeof data.explanation !== 'string') {
+    console.error('[Fluent] Invalid agent response:', data);
+    showTopBarFallback(originalText);
+    return;
+  }
+  
+  const escapedExplanation = escapeHtml(data.explanation);
+  const conceptsHtml = data.concepts && Array.isArray(data.concepts) && data.concepts.length > 0
+    ? `<div class="fluent-ai-topbar__concepts">
+         <div class="fluent-ai-topbar__tags">
+           ${data.concepts.map((c: string) => `<span class="fluent-ai-topbar__tag">${escapeHtml(c)}</span>`).join('')}
+         </div>
+       </div>`
+    : '';
+  
+  content.innerHTML = `
+    <div class="fluent-ai-topbar__explanation">
+      <p>${escapedExplanation}</p>
+    </div>
+    ${conceptsHtml}
+    <div class="fluent-ai-topbar__footer">
+      <button class="fluent-ai-topbar__details-btn">View Details</button>
+    </div>
+  `;
+  
+  // Animate height expansion
+  requestAnimationFrame(() => {
+    const contentHeight = content.scrollHeight;
+    aiTopBar!.style.height = `${Math.min(contentHeight + 60, window.innerHeight * 0.35)}px`;
+  });
+  
+  // Add details button handler
+  const detailsBtn = content.querySelector('.fluent-ai-topbar__details-btn');
+  if (detailsBtn) {
+    detailsBtn.addEventListener('click', () => {
+      openAIModal(originalText, currentSelection!.range);
+    });
+  }
+}
+
+function showTopBarFallback(text: string): void {
+  if (!aiTopBar) return;
+  
+  const content = aiTopBar.querySelector('.fluent-ai-topbar__content');
+  if (!content) return;
+  
+  const glossaryTerms = glossary.map(e => e.term);
+  const localAnalysis = tagSentence(text, glossaryTerms);
+  
+  content.innerHTML = `
+    <div class="fluent-ai-topbar__explanation">
+      <p>Agent offline. Local analysis complete.</p>
+    </div>
+    ${localAnalysis.terms && localAnalysis.terms.length > 0 ? `
+      <div class="fluent-ai-topbar__concepts">
+        <div class="fluent-ai-topbar__tags">
+          ${localAnalysis.terms.map(t => `<span class="fluent-ai-topbar__tag">${t}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}
+    <div class="fluent-ai-topbar__footer">
+      <button class="fluent-ai-topbar__details-btn">View Details</button>
+    </div>
+  `;
+  
+  // Animate height expansion
+  requestAnimationFrame(() => {
+    const contentHeight = content.scrollHeight;
+    aiTopBar!.style.height = `${Math.min(contentHeight + 60, window.innerHeight * 0.35)}px`;
+  });
+  
+  // Add details button handler
+  const detailsBtn = content.querySelector('.fluent-ai-topbar__details-btn');
+  if (detailsBtn) {
+    detailsBtn.addEventListener('click', () => {
+      openAIModal(text, currentSelection!.range);
+    });
+  }
+}
+
+function closeAITopBar(): void {
+  if (aiTopBar) {
+    aiTopBar.remove();
+    aiTopBar = null;
+  }
+  document.removeEventListener('click', handleTopBarOutsideClick);
+}
+
+function handleTopBarOutsideClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement;
+  
+  if (
+    aiTopBar && 
+    !aiTopBar.contains(target) && 
+    !target.closest('.fluent-selection-button')
+  ) {
+    closeAITopBar();
+  }
+}
+
 function handlePointerDown(event: MouseEvent): void {
   const target = event.target as Node | null;
   if (capturePopoverElement && target && capturePopoverElement.contains(target)) {
@@ -877,6 +1286,15 @@ function handlePointerDown(event: MouseEvent): void {
   // Check if clicking on any sentence highlight overlay
   if (currentSentenceHighlight.length > 0 && target instanceof HTMLElement) {
     if (currentSentenceHighlight.some(el => el.contains(target))) {
+      return;
+    }
+  }
+
+  // Check if clicking on selection button or modal
+  if (target instanceof HTMLElement) {
+    if (target.classList.contains('fluent-selection-button') || 
+        target.closest('.fluent-ai-modal') ||
+        target.closest('.fluent-ai-topbar')) {
       return;
     }
   }
@@ -898,7 +1316,10 @@ function isNodeInsideExtension(node: Node | null): boolean {
       current instanceof HTMLElement &&
       (current.classList.contains('fluent-popover') ||
         current.classList.contains('fluent-popover-container') ||
-        current.classList.contains('fluent-capture-popover'))
+        current.classList.contains('fluent-capture-popover') ||
+        current.classList.contains('fluent-selection-button') ||
+        current.classList.contains('fluent-ai-modal') ||
+        current.classList.contains('fluent-ai-topbar'))
     ) {
       return true;
     }

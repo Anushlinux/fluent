@@ -1,21 +1,25 @@
 # Fluent Mailbox Agent
 
-A Python-based Mailbox Agent that uses Google's Gemini LLM to extract Web3 concepts, terms, and relationships from text input. This agent runs locally with mailbox functionality enabled for Agentverse connectivity.
+A Python-based Mailbox Agent that uses **ASI:One** (Fetch.ai's agentic AI platform) to extract Web3 concepts, terms, and relationships from text input. This agent runs locally with mailbox functionality enabled for Agentverse connectivity.
 
 ## Features
 
-- 🤖 **Gemini LLM Integration** - Uses Google's Gemini Pro model for intelligent concept extraction
+- 🤖 **ASI:One Integration** - Uses Fetch.ai's asi1-mini and asi1-graph models for intelligent concept extraction and graph reasoning
 - 📧 **Mailbox Agent** - Runs locally but discoverable through Agentverse
 - 🔍 **Web3 Focus** - Specialized in extracting blockchain, DeFi, NFT, and Web3 concepts
-- 🛡️ **Error Handling** - Fallback extraction when API fails
-- 📊 **Structured Output** - Returns JSON with terms, context, and relationships
+- 🧠 **MeTTa Knowledge Graph** - Symbolic reasoning engine for concept relationships
+- 📊 **Graph Analysis** - Advanced graph reasoning with asi1-graph model
+- 🛡️ **Error Handling** - Robust error handling for API calls
+- 📋 **Structured Output** - Returns JSON with terms, context, and relationships
 - 🔄 **Real-time Chat** - Supports chat protocol for interactive communication
+- 💾 **Supabase Integration** - Optional cloud storage for captured sentences
 
 ## Prerequisites
 
 - Python 3.8 or higher
-- Google Gemini API key
+- ASI:One API key (from Fetch.ai)
 - Internet connection for API calls
+- (Optional) Supabase account for cloud storage
 
 ## Setup Instructions
 
@@ -51,23 +55,28 @@ pip install -r requirements.txt
 
 ### 5. Configure Environment Variables
 
-1. Copy the example environment file:
+1. Create a `.env` file in the agent directory:
    ```bash
-   cp .env.example .env
+   touch .env
    ```
 
-2. Edit `.env` and add your Gemini API key:
+2. Edit `.env` and add your ASI:One API key:
    ```
-   GEMINI_API_KEY=your_actual_gemini_api_key_here
+   ASI_ONE_API_KEY=your_asi_one_api_key_here
+   SUPABASE_URL=your_supabase_url  # Optional
+   SUPABASE_ANON_KEY=your_supabase_key  # Optional
    ```
 
-### 6. Get Gemini API Key
+### 6. Get ASI:One API Key
 
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Sign in with your Google account
-3. Click "Create API Key"
-4. Copy the generated key
-5. Add it to your `.env` file
+1. Visit [Fetch.ai ASI:One](https://fetch.ai/asi-one) or the Innovation Lab
+2. Sign up or log in to your account
+3. Navigate to API Keys section
+4. Create a new API key
+5. Copy the generated key
+6. Add it to your `.env` file
+
+**Note:** ASI:One provides free tier credits for hackathons and development!
 
 ## Running the Agent
 
@@ -80,11 +89,12 @@ python mailbox_agent.py
 ### Expected Output
 
 ```
-🚀 Fluent Mailbox Agent Starting...
-📧 Your agent's address is: agent1q...
-🌐 Agent will be available at: http://0.0.0.0:8000
-📋 Inspector link will be provided in the logs
-🔑 Using Gemini API key: ✅ Set
+🚀 Fluent Advanced Agent Starting...
+📧 Agent address: agent1q...
+🌐 Available at: http://0.0.0.0:8010
+🔑 ASI:One API: ✅ Set
+🧠 MeTTa Knowledge Graph: Initialized
+📊 ASI:One Models: asi1-mini (extraction), asi1-graph (reasoning)
 ```
 
 ## Connecting to Agentverse
@@ -148,7 +158,14 @@ The agent will respond with structured analysis:
 
 ## Agent Capabilities
 
-### Concept Extraction
+### ASI:One Models
+
+The agent leverages two specialized ASI:One models:
+
+- **asi1-mini**: Fast concept extraction and personalized explanations
+- **asi1-graph**: Advanced graph analysis and learning path recommendations
+
+### Concept Extraction (asi1-mini)
 
 The agent specializes in extracting:
 
@@ -173,30 +190,134 @@ Identifies causal relationships between concepts:
 - Part-of/Contains relationships
 - Causes/Results relationships
 
+### Graph Analysis (asi1-graph)
+
+Advanced knowledge graph reasoning capabilities:
+- **Overview**: Identify key clusters and central concepts
+- **Learning Path**: Suggest optimal learning sequences
+- **Clusters**: Identify topic clusters and interconnections
+- **Gaps**: Find missing connections in the knowledge graph
+
+## REST API Endpoints
+
+The agent exposes the following REST endpoints:
+
+### POST /explain-sentence
+
+Processes a sentence for Web3 concept extraction and explanation.
+
+**Request:**
+```json
+{
+  "sentence": "Uniswap uses AMM for decentralized token swaps",
+  "url": "https://example.com",
+  "user_id": "user123"
+}
+```
+
+**Response:**
+```json
+{
+  "explanation": "Uniswap is a decentralized exchange...",
+  "concepts": ["Uniswap", "AMM", "token swap"],
+  "relations": [["Uniswap", "uses", "AMM"]],
+  "context": "DeFi",
+  "captured": true,
+  "timestamp": 1234567890
+}
+```
+
+### POST /graph-analysis
+
+Analyzes the MeTTa knowledge graph using ASI:One asi1-graph model.
+
+**Request:**
+```json
+{
+  "query_type": "overview",
+  "user_context": "beginner learning Web3"
+}
+```
+
+**Query Types:**
+- `overview`: General graph analysis
+- `learning_path`: Optimal learning sequences
+- `clusters`: Topic clustering
+- `gaps`: Missing connections
+
+**Response:**
+```json
+{
+  "analysis": "Your knowledge graph contains...",
+  "insights": [
+    "Strong cluster around DeFi concepts",
+    "Account abstraction is a central topic"
+  ],
+  "suggestions": [
+    "Explore the connection between oracles and DeFi"
+  ],
+  "timestamp": 1234567890
+}
+```
+
+### GET /health
+
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "agent": "FluentAgent",
+  "timestamp": 1234567890,
+  "metta_initialized": true,
+  "supabase_connected": true
+}
+```
+
+## Chat Protocol Commands
+
+Send these commands via chat protocol:
+
+- **`metta: <query>`** - Direct MeTTa knowledge graph query
+  - Example: `metta: (match &self (concept $x defi) $x)`
+- **`show unexplored`** - List all concepts in the knowledge graph
+- **`graph analysis`** - Trigger ASI:One asi1-graph analysis
+
 ## Troubleshooting
 
 ### Common Issues
 
-**"GEMINI_API_KEY environment variable is not set"**
+**"ASI_ONE_API_KEY environment variable is not set"**
 - Make sure you've created a `.env` file
 - Verify the API key is correctly set in `.env`
 - Restart the agent after adding the key
 
-**"Gemini exception: ..."**
+**"ASI:One API Error"**
 - Check your internet connection
-- Verify your API key is valid
+- Verify your API key is valid and has credits
 - Check if you've exceeded API rate limits
-- The agent will fall back to keyword extraction
+- The agent will return error messages in responses
 
 **"Agent failed to start"**
 - Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Check if port 8000 is available
+- Check if port 8010 is available
 - Verify Python version is 3.8+
+
+**"MeTTa Error"**
+- Verify hyperon package is installed
+- Check MeTTa query syntax
+- Review agent logs for specific error details
 
 **Connection Issues with Agentverse**
 - Ensure the agent is running and shows the Inspector link
 - Check your internet connection
 - Try refreshing the Inspector page
+
+**Supabase Connection Issues (Optional)**
+- Verify SUPABASE_URL and SUPABASE_ANON_KEY are set
+- Check your Supabase project is active
+- Agent will work without Supabase (just won't sync to cloud)
 
 ### Debug Mode
 
@@ -206,7 +327,8 @@ python mailbox_agent.py
 ```
 
 Look for:
-- Gemini API responses
+- ASI:One API responses
+- MeTTa query results
 - Error messages
 - Connection status updates
 
@@ -226,15 +348,28 @@ agent/
 ## Dependencies
 
 - **uagents**: Agent framework for mailbox functionality
-- **google-generativeai**: Gemini LLM integration
+- **requests**: HTTP client for ASI:One API calls
+- **hyperon**: MeTTa symbolic reasoning engine
+- **supabase**: Optional cloud storage integration
 - **python-dotenv**: Environment variable management
 
 ## Security Notes
 
 - Never commit your `.env` file to version control
-- Keep your Gemini API key secure
+- Keep your ASI:One API key secure
+- Store Supabase credentials safely
 - The agent runs locally but communicates through Agentverse
 - All API calls are made from your local machine
+
+## ASI:One Integration Benefits
+
+- ✅ **OpenAI-compatible API** - Easy drop-in replacement
+- ✅ **Free hackathon credits** - Perfect for ETHOnline/ASI hackathons
+- ✅ **Specialized models** - asi1-mini for extraction, asi1-graph for reasoning
+- ✅ **Web3-optimized** - Better performance on blockchain content
+- ✅ **Graph reasoning** - Advanced analysis with asi1-graph model
+- ✅ **Structured output** - JSON-formatted responses with response_format
+- ✅ **Concise responses** - Token limits and optimized prompts prevent verbosity
 
 ## Support
 
