@@ -1,51 +1,17 @@
 import { useEffect, useState } from 'react';
-import { calculateStats, exportAsJSON, exportAsMarkdown, type UserStats } from '../../utils/stats';
-import { getLogs, type LogEntry } from '../../utils/logger';
+import { calculateStats, type UserStats } from '../../utils/stats';
 import { getAnalysisState, type AnalysisModeState } from '../../utils/analysisMode';
 import { checkAuthState, signOut, openLoginPage, type AuthState } from '../../utils/auth';
 import { initializeSupabase } from '../../utils/supabase';
-import { QuizModal } from '../../components/QuizModal';
-import PokedexView from './PokedexView';
+import { getLogs } from '../../utils/logger';
 import './App.css';
-
-interface TermsByDate {
-  [date: string]: Set<string>;
-}
-
-interface GlossaryEntry {
-  term: string;
-  category?: string;
-  definition?: string;
-  definitions?: { [context: string]: string };
-  [key: string]: any;
-}
-
-type ViewType = 'dashboard' | 'pokedex';
-
-interface Gap {
-  cluster: string;
-  missing_concepts: string[];
-  confidence: number;
-}
-
-interface GapsData {
-  gaps: Gap[];
-  suggestions: string[];
-  timestamp: number;
-}
 
 export default function App() {
   const [stats, setStats] = useState<UserStats | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [termsByDate, setTermsByDate] = useState<TermsByDate>({});
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [analysisState, setAnalysisState] = useState<AnalysisModeState>({ active: false, analyzing: false });
-  const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false, user: null, session: null });
-  const [gaps, setGaps] = useState<GapsData | null>(null);
-  const [showQuizModal, setShowQuizModal] = useState(false);
-  const [quizData, setQuizData] = useState<any>(null);
+  const [recentTerms, setRecentTerms] = useState<string[]>([]);
 
   useEffect(() => {
     initializeApp();
@@ -73,58 +39,26 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [statsData, logsData, analysisStateData, glossaryData, auth, gapsData] = await Promise.all([
+      const [statsData, analysisStateData, auth, logsData] = await Promise.all([
         calculateStats(),
-        getLogs(),
         getAnalysisState(),
-        loadGlossary(),
         checkAuthState(),
-        loadGaps(),
+        getLogs(),
       ]);
 
       setStats(statsData);
-      setLogs(logsData);
       setAnalysisState(analysisStateData);
-      setGlossary(glossaryData);
       setAuthState(auth);
-      setGaps(gapsData);
-
-      // Group terms by date
-      const grouped: TermsByDate = {};
-      logsData.forEach(log => {
-        const date = log.timestamp.split('T')[0];
-        if (!grouped[date]) {
-          grouped[date] = new Set();
-        }
-        grouped[date].add(log.term);
-      });
-
-      setTermsByDate(grouped);
+      
+      // Get recent unique terms
+      const uniqueTerms = Array.from(
+        new Set(logsData.slice(-10).map(log => log.term))
+      ).slice(0, 5);
+      setRecentTerms(uniqueTerms);
     } catch (error) {
       console.error('[Fluent] Failed to load data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadGaps = async (): Promise<GapsData | null> => {
-    try {
-      const result = await chrome.storage.local.get('fluentGaps');
-      return result.fluentGaps || null;
-    } catch (error) {
-      console.error('[Fluent] Failed to load gaps:', error);
-      return null;
-    }
-  };
-
-  const loadGlossary = async (): Promise<GlossaryEntry[]> => {
-    try {
-      const glossaryUrl = chrome.runtime.getURL('glossary.json');
-      const response = await fetch(glossaryUrl);
-      return await response.json();
-    } catch (error) {
-      console.error('[Fluent] Failed to load glossary:', error);
-      return [];
     }
   };
 
@@ -152,16 +86,6 @@ export default function App() {
     }
   };
 
-  const handleExportJSON = () => {
-    const json = exportAsJSON(logs);
-    downloadFile(json, 'fluent-logs.json', 'application/json');
-  };
-
-  const handleExportMarkdown = () => {
-    const markdown = exportAsMarkdown(logs);
-    downloadFile(markdown, 'fluent-logs.md', 'text/markdown');
-  };
-
   const handleLogin = () => {
     openLoginPage();
   };
@@ -175,364 +99,102 @@ export default function App() {
     }
   };
 
-  const handleTakeQuiz = async (gap: Gap) => {
-    if (!authState.user?.id) {
-      console.error('[Fluent] User not authenticated');
-      return;
-    }
-
-    try {
-      // Call agent to generate quiz
-      const response = await fetch('http://localhost:8010/generate-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: authState.user.id,
-          gap_cluster: gap.cluster,
-          difficulty: 2 // Default to intermediate
-        })
-      });
-
-      if (!response.ok) {
-        console.error('[Fluent] Quiz generation failed:', response.status);
-        return;
-      }
-
-      const data = await response.json();
-      setQuizData(data);
-      setShowQuizModal(true);
-    } catch (error) {
-      console.error('[Fluent] Failed to generate quiz:', error);
-    }
-  };
-
-  const handleQuizComplete = async (score: number, earnedXP: number) => {
-    console.log(`[Fluent] Quiz completed: ${score} points, ${earnedXP} XP earned`);
-    
-    // Update stats with earned XP
-    if (stats) {
-      setStats({
-        ...stats,
-        totalXP: stats.totalXP + earnedXP,
-        totalQuizzesTaken: stats.totalQuizzesTaken + 1
-      });
-    }
-
-    // Save to local storage
-    const statsResult = await chrome.storage.local.get('fluentStats');
-    const currentStats = statsResult.fluentStats || {};
-    await chrome.storage.local.set({
-      fluentStats: {
-        ...currentStats,
-        xp: (currentStats.xp || 0) + earnedXP
-      }
-    });
-
-    // Reload data to refresh everything
-    setTimeout(() => {
-      loadData();
-    }, 2000);
-  };
-
-  const downloadFile = (content: string, filename: string, type: string) => {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   if (loading) {
     return (
       <div className="app">
-        <div className="loading">Loading...</div>
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
-
-  const sortedDates = Object.keys(termsByDate).sort().reverse();
 
   return (
     <div className="app">
       {/* Header */}
       <header className="header">
         <div className="header__top">
-          <div className="header__logo">
-            <img src="/icon.svg" alt="Fluent Logo" width="40" height="40" />
-            <h1 className="header__title">Fluent</h1>
-          </div>
-        </div>
-        <p className="header__subtitle">Web3 Learning Platform</p>
-
-        {/* Auth Section */}
-        <div className="header__auth">
+          <h1 className="header__title">Fluent</h1>
           {authState.isAuthenticated ? (
-            <div className="auth-status">
-              <span className="auth-status__email">{authState.user?.email}</span>
-              <button 
-                className="auth-status__logout"
-                onClick={handleLogout}
-              >
+            <div className="header__auth">
+              <span className="auth-email">{authState.user?.email}</span>
+              <button className="auth-logout" onClick={handleLogout}>
                 Logout
               </button>
             </div>
           ) : (
-            <button 
-              className="auth-button"
-              onClick={handleLogin}
-            >
-              🔐 Login for Auto-Sync
+            <button className="auth-login" onClick={handleLogin}>
+              <span className="auth-icon">→</span>
+              Auto-Sync
             </button>
           )}
         </div>
-        
-        {/* Analyze Button */}
-        <div className="header__analyze">
-          <button 
-            className={`analyze-button ${analysisState.analyzing ? 'analyze-button--analyzing' : ''} ${analysisState.active ? 'analyze-button--active' : ''}`}
-            onClick={handleAnalyzeClick}
-            disabled={analysisState.analyzing}
-          >
-            <span className="analyze-button__icon">
-              {analysisState.analyzing ? '✨' : analysisState.active ? '✕' : '🔍'}
-            </span>
-            <span className="analyze-button__text">
-              {analysisState.analyzing ? 'Analyzing...' : analysisState.active ? 'Clear Analysis' : 'Analyze Page'}
-            </span>
-          </button>
-        </div>
-        
-        {/* Tab Navigation */}
-        <div className="header__tabs">
-          <button 
-            className={`header__tab ${currentView === 'dashboard' ? 'header__tab--active' : ''}`}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            📊 Dashboard
-          </button>
-          <button 
-            className={`header__tab ${currentView === 'pokedex' ? 'header__tab--active' : ''}`}
-            onClick={() => setCurrentView('pokedex')}
-          >
-            📚 Pokédex
-          </button>
-        </div>
+        <p className="header__subtitle">Your Web3 learning companion</p>
       </header>
 
       {/* Main Content */}
-      {currentView === 'dashboard' && (
-        <>
-          {/* Knowledge Insights Section */}
-          {authState.isAuthenticated && gaps && gaps.gaps && gaps.gaps.length > 0 && (
-            <div className="section">
-              <h2 className="section__title">💡 Knowledge Insights</h2>
-              <div className="insights-list">
-                {gaps.gaps.map((gap, index) => (
-                  <div key={index} className="insight-card">
-                    <div className="insight-card__header">
-                      <span className="insight-card__cluster">📊 {gap.cluster} Cluster</span>
-                      <span className="insight-card__confidence">
-                        {Math.round(gap.confidence * 100)}% confidence
-                      </span>
-                    </div>
-                    <div className="insight-card__content">
-                      <p className="insight-card__text">
-                        Weak area detected. Missing concepts: <strong>{gap.missing_concepts.slice(0, 3).join(', ')}</strong>
-                      </p>
-                    </div>
-                    <div className="insight-card__actions">
-                      <button 
-                        className="insight-card__button"
-                        onClick={() => handleTakeQuiz(gap)}
-                      >
-                        📝 Take Quiz
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {gaps.suggestions && gaps.suggestions.length > 0 && (
-                <div className="suggestions-box">
-                  <h3 className="suggestions-box__title">📚 Suggestions:</h3>
-                  <ul className="suggestions-box__list">
-                    {gaps.suggestions.map((suggestion, index) => (
-                      <li key={index}>{suggestion}</li>
-                    ))}
-                  </ul>
+      <main className="main">
+        {/* Hero Stat Card */}
+        {stats && (
+          <div className="hero-card">
+            <div className="hero-card__content">
+              <div className="hero-card__icon">📚</div>
+              <div className="hero-card__value">{stats.totalXP}</div>
+              <div className="hero-card__label">Total Experience Points</div>
+              <div className="hero-card__meta">
+                <div className="hero-meta">
+                  <span className="hero-meta__icon">🔥</span>
+                  <span className="hero-meta__value">{stats.currentStreak}</span>
+                  <span className="hero-meta__label">Day Streak</span>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Stats Cards */}
-          {stats && (
-            <div className="stats">
-          <div className="stat-card stat-card--primary">
-            <div className="stat-card__value">{stats.totalXP}</div>
-            <div className="stat-card__label">Total XP</div>
-          </div>
-
-          <div className="stat-card stat-card--secondary">
-            <div className="stat-card__value">
-              {stats.currentStreak}
-              <span className="stat-card__unit">🔥</span>
-            </div>
-            <div className="stat-card__label">Day Streak</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.termsLearnedToday}</div>
-            <div className="stat-card__label">Terms Today</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.uniqueTermsSeen}</div>
-            <div className="stat-card__label">Unique Terms</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.accuracy}%</div>
-            <div className="stat-card__label">Quiz Accuracy</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.totalQuizzesTaken}</div>
-            <div className="stat-card__label">Quizzes Taken</div>
-          </div>
-        </div>
-      )}
-
-      {/* Terms List */}
-      <div className="section">
-        <h2 className="section__title">Learning History</h2>
-
-        {logs.length === 0 ? (
-          <div className="empty-state">
-            <p className="empty-state__text">
-              No terms learned yet. Browse the web and discover Web3 terms!
-            </p>
-            <p className="empty-state__hint">
-              Terms will be automatically highlighted on any webpage.
-            </p>
-          </div>
-        ) : (
-          <div className="terms-list">
-            {sortedDates.map(date => (
-              <div key={date} className="terms-group">
-                <div className="terms-group__header">
-                  <span className="terms-group__date">{formatDate(date)}</span>
-                  <span className="terms-group__count">
-                    {termsByDate[date].size} {termsByDate[date].size === 1 ? 'term' : 'terms'}
-                  </span>
-                </div>
-                <div className="terms-group__items">
-                  {Array.from(termsByDate[date]).map(term => {
-                    const termLogs = logs.filter(
-                      log => log.term === term && log.timestamp.split('T')[0] === date
-                    );
-                    const quizLog = termLogs.find(log => log.quizResult !== undefined);
-
-                    return (
-                      <div key={term} className="term-item">
-                        <div className="term-item__header">
-                          <span className="term-item__name">{term}</span>
-                          {quizLog && (
-                            <span
-                              className={`term-item__badge ${
-                                quizLog.quizResult
-                                  ? 'term-item__badge--correct'
-                                  : 'term-item__badge--incorrect'
-                              }`}
-                            >
-                              {quizLog.quizResult ? '✓' : '✗'}
-                              {quizLog.xp ? ` +${quizLog.xp} XP` : ''}
-                            </span>
-                          )}
-                        </div>
-                        {termLogs[0]?.contextSentence && (
-                          <div className="term-item__context">
-                            "{termLogs[0].contextSentence.slice(0, 100)}
-                            {termLogs[0].contextSentence.length > 100 ? '...' : ''}"
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="hero-meta">
+                  <span className="hero-meta__icon">📝</span>
+                  <span className="hero-meta__value">{stats.termsLearnedToday}</span>
+                  <span className="hero-meta__label">Today</span>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Export Section */}
-      {logs.length > 0 && (
-        <div className="section">
-          <h2 className="section__title">Export Data</h2>
-          <div className="export-buttons">
-            <button className="button button--secondary" onClick={handleExportJSON}>
-              📄 Export as JSON
-            </button>
-            <button className="button button--secondary" onClick={handleExportMarkdown}>
-              📝 Export as Markdown
-            </button>
+        {/* Recent Terms Glassmorphic Preview */}
+        {recentTerms.length > 0 && (
+          <div className="recent-preview">
+            <div className="recent-preview__header">
+              <span className="recent-preview__icon">✨</span>
+              <span className="recent-preview__title">Recently Learned</span>
+            </div>
+            <div className="recent-preview__terms">
+              {recentTerms.slice(0, 3).map((term, index) => (
+                <div key={index} className="recent-preview__term">
+                  {term}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-        </>
-      )}
+        )}
 
-      {/* Pokédex View */}
-      {currentView === 'pokedex' && (
-        <PokedexView glossary={glossary} />
-      )}
+        {/* Analyze Button */}
+        <button 
+          className={`analyze-button ${analysisState.analyzing ? 'analyze-button--analyzing' : ''}`}
+          onClick={handleAnalyzeClick}
+          disabled={analysisState.analyzing}
+        >
+          <span className="analyze-icon">
+            {analysisState.analyzing ? '⏳' : '✨'}
+          </span>
+          <span className="analyze-text">
+            {analysisState.analyzing ? 'Analyzing page...' : 'Analyze this page'}
+          </span>
+        </button>
+      </main>
 
       {/* Footer */}
       <footer className="footer">
-        <p className="footer__text">
-          Keep learning! Hover over highlighted terms or click for quizzes.
-        </p>
+        <p>Learn Web3 as you browse</p>
       </footer>
-
-      {/* Quiz Modal */}
-      {showQuizModal && quizData && quizData.questions && quizData.questions.length > 0 && (
-        <QuizModal
-          cluster={quizData.cluster}
-          difficulty={quizData.difficulty}
-          questions={quizData.questions}
-          onClose={() => setShowQuizModal(false)}
-          onComplete={handleQuizComplete}
-        />
-      )}
     </div>
   );
-}
-
-/**
- * Format date string for display
- */
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const dateStr = date.toISOString().split('T')[0];
-  const todayStr = today.toISOString().split('T')[0];
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-  if (dateStr === todayStr) {
-    return 'Today';
-  } else if (dateStr === yesterdayStr) {
-    return 'Yesterday';
-  } else {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }
 }
 

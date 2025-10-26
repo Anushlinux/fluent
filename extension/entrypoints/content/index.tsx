@@ -888,6 +888,7 @@ let selectionButtonTimeout: number | null = null;
 let currentSelection: { text: string; range: Range } | null = null;
 let aiModal: HTMLElement | null = null;
 let aiTopBar: HTMLElement | null = null;
+let chatExpanded: boolean = false;
 
 function handleTextSelectionForButton(): void {
   // Clear existing timeout
@@ -930,10 +931,12 @@ function showSelectionButton(range: Range): void {
   
   selectionButton = document.createElement('button');
   selectionButton.className = 'fluent-selection-button';
-  selectionButton.innerHTML = '✨'; // Or 'AI' text
+  selectionButton.innerHTML = '<span class="fluent-selection-button__icon">✨</span>';
   selectionButton.style.position = 'absolute';
-  selectionButton.style.left = `${rect.right + window.scrollX + 8}px`;
-  selectionButton.style.top = `${rect.top + window.scrollY + (rect.height / 2) - 20}px`;
+  selectionButton.style.left = `${rect.right + window.scrollX + 12}px`;
+  selectionButton.style.top = `${rect.top + window.scrollY + (rect.height / 2) - 24}px`;
+  selectionButton.setAttribute('aria-label', 'Get AI explanation for this selection');
+  selectionButton.setAttribute('title', 'Ask AI');
   
   selectionButton.addEventListener('click', handleSelectionButtonClick);
   
@@ -1098,6 +1101,12 @@ function closeAIModal(): void {
 function showAITopBar(text: string): void {
   closeAITopBar();
   
+  // Truncate text for header (shorter for title)
+  const truncatedTitle = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+  
+  // Reset chat state
+  chatExpanded = false;
+  
   // Create top bar
   aiTopBar = document.createElement('div');
   aiTopBar.className = 'fluent-ai-topbar';
@@ -1105,17 +1114,23 @@ function showAITopBar(text: string): void {
   aiTopBar.innerHTML = `
     <div class="fluent-ai-topbar__header">
       <div class="fluent-ai-topbar__title">
-        <span class="fluent-ai-topbar__icon">✨</span>
-        <span class="fluent-ai-topbar__text">AI Analysis</span>
+        <span class="fluent-ai-topbar__text">${escapeHtml(truncatedTitle)}</span>
       </div>
       <div class="fluent-ai-topbar__actions">
         <button class="fluent-ai-topbar__close" aria-label="Close">×</button>
       </div>
     </div>
     <div class="fluent-ai-topbar__content">
-      <div class="fluent-ai-topbar__loading">
-        <div class="fluent-ai-topbar__spinner"></div>
-        <p>Analyzing text...</p>
+      <div class="fluent-ai-topbar__skeleton">
+        <div class="fluent-ai-topbar__skeleton-line fluent-ai-topbar__skeleton-line--title"></div>
+        <div class="fluent-ai-topbar__skeleton-line fluent-ai-topbar__skeleton-line--content"></div>
+        <div class="fluent-ai-topbar__skeleton-line fluent-ai-topbar__skeleton-line--content"></div>
+        <div class="fluent-ai-topbar__skeleton-line fluent-ai-topbar__skeleton-line--content-short"></div>
+        <div class="fluent-ai-topbar__skeleton-line fluent-ai-topbar__skeleton-line--tags">
+          <div class="fluent-ai-topbar__skeleton-tag"></div>
+          <div class="fluent-ai-topbar__skeleton-tag"></div>
+          <div class="fluent-ai-topbar__skeleton-tag"></div>
+        </div>
       </div>
     </div>
   `;
@@ -1138,6 +1153,15 @@ function showAITopBar(text: string): void {
 }
 
 async function fetchAIExplanationForTopBar(text: string): Promise<void> {
+  // Update to stage 2 after initial delay
+  setTimeout(() => {
+    if (!aiTopBar) return;
+    const progressStage = aiTopBar.querySelector('.fluent-ai-topbar__progress-stage');
+    if (progressStage) {
+      progressStage.innerHTML = '<span class="fluent-ai-topbar__spinner"></span> Generating explanation...';
+    }
+  }, 500);
+  
   try {
     const storage = getExtensionStorage();
     let userId = '';
@@ -1200,27 +1224,101 @@ function showTopBarContent(data: any, originalText: string): void {
        </div>`
     : '';
   
+  // Add content with always-visible chat section
   content.innerHTML = `
-    <div class="fluent-ai-topbar__explanation">
+    <div class="fluent-ai-topbar__explanation fluent-ai-topbar__explanation--animate">
       <p>${escapedExplanation}</p>
     </div>
     ${conceptsHtml}
-    <div class="fluent-ai-topbar__footer">
-      <button class="fluent-ai-topbar__details-btn">View Details</button>
+    <div class="fluent-ai-topbar__chat-section">
+      <div class="fluent-ai-topbar__chat-container">
+        <div class="fluent-ai-topbar__chat-messages"></div>
+        <div class="fluent-ai-topbar__chat-input">
+          <input type="text" placeholder="Ask a question..." />
+          <button class="fluent-ai-topbar__chat-send">→</button>
+        </div>
+      </div>
     </div>
   `;
   
-  // Animate height expansion
+  // Trigger fade-in animation for content
   requestAnimationFrame(() => {
-    const contentHeight = content.scrollHeight;
-    aiTopBar!.style.height = `${Math.min(contentHeight + 60, window.innerHeight * 0.35)}px`;
+    const explanation = content.querySelector('.fluent-ai-topbar__explanation--animate');
+    if (explanation) {
+      setTimeout(() => {
+        (explanation as HTMLElement).style.opacity = '1';
+      }, 10);
+    }
   });
   
-  // Add details button handler
-  const detailsBtn = content.querySelector('.fluent-ai-topbar__details-btn');
-  if (detailsBtn) {
-    detailsBtn.addEventListener('click', () => {
-      openAIModal(originalText, currentSelection!.range);
+  // Add chat functionality - always visible
+  const chatMessagesContainer = content.querySelector('.fluent-ai-topbar__chat-messages');
+  const chatInput = content.querySelector('.fluent-ai-topbar__chat-input input') as HTMLInputElement;
+  const chatSend = content.querySelector('.fluent-ai-topbar__chat-send') as HTMLButtonElement;
+  
+  if (chatSend && chatInput && chatMessagesContainer) {
+    const sendMessage = async () => {
+      const messageText = chatInput.value.trim();
+      if (!messageText) return;
+      
+      // Add user message
+      chatMessagesContainer.innerHTML += `
+        <div class="fluent-ai-topbar__message fluent-ai-topbar__message--user">${escapeHtml(messageText)}</div>
+      `;
+      chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+      chatInput.value = '';
+      
+      // Disable send button
+      chatSend.disabled = true;
+      
+      // Call agent API with conversation context
+      try {
+        const storage = getExtensionStorage();
+        let userId = '';
+        if (storage) {
+          const authData = await storage.local.get('fluentAuthSession');
+          userId = authData?.fluentAuthSession?.user?.id || '';
+        }
+        
+        const response = await chrome.runtime.sendMessage({
+          action: 'callAgent',
+          data: { 
+            sentence: messageText, 
+            url: window.location.href, 
+            user_id: userId,
+            context: originalText,
+            conversation: chatMessagesContainer.innerHTML
+          }
+        });
+        
+        if (response.success && response.data) {
+          const aiResponse = response.data.explanation || 'Sorry, I could not generate a response.';
+          chatMessagesContainer.innerHTML += `
+            <div class="fluent-ai-topbar__message fluent-ai-topbar__message--ai">${escapeHtml(aiResponse)}</div>
+          `;
+          chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        } else {
+          chatMessagesContainer.innerHTML += `
+            <div class="fluent-ai-topbar__message fluent-ai-topbar__message--ai">❌ Failed to get response from AI agent.</div>
+          `;
+          chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+      } catch (error) {
+        console.warn('[Fluent] Chat error:', error);
+        chatMessagesContainer.innerHTML += `
+          <div class="fluent-ai-topbar__message fluent-ai-topbar__message--ai">⚠️ AI Agent Offline: The service is not running.</div>
+        `;
+        chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+      } finally {
+        chatSend.disabled = false;
+      }
+    };
+    
+    chatSend.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
     });
   }
 }
