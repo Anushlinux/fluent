@@ -105,6 +105,19 @@ class QuizGenerationResponse(Model):
     difficulty: int
     timestamp: int
 
+class BadgeImageRequest(Model):
+    domain: str
+    score: int
+    node_count: int
+    concepts: list = []  # User's captured concepts
+    format: str = "square"  # square, story, certificate, poster, banner
+
+class BadgeImageResponse(Model):
+    image_data: str  # base64 encoded
+    prompt_used: str
+    generation_time: float
+    timestamp: int
+
 # ======= METTA KNOWLEDGE GRAPH =======
 metta = MeTTa()
 
@@ -993,6 +1006,109 @@ async def handle_generate_quiz(ctx: Context, req: QuizGenerationRequest) -> Quiz
             timestamp=int(time.time())
         )
 
+def generate_badge_image_with_asi(domain: str, score: int, node_count: int, concepts: list, format: str) -> tuple[str, float]:
+    """Use ASI:One image generation API to create badge images."""
+    import time
+    start_time = time.time()
+    
+    # Define prompt templates based on format
+    prompt_templates = {
+        "square": f"Professional achievement badge for {domain} mastery, featuring {', '.join(concepts[:3]) if concepts else 'knowledge symbols'}, modern minimalist design, gradient background, trophy icon, {score}% score display, high quality digital art, 1024x1024",
+        "story": f"Vertical social media story showcasing {domain} knowledge badge, modern UI design, vibrant colors, {', '.join(concepts[:3]) if concepts else 'achievement'} icons, {score}% mastery celebration theme, 9:16 aspect ratio, 1080x1920",
+        "certificate": f"Elegant certificate of achievement for {domain} expertise, formal design with ornate border, {', '.join(concepts[:2]) if concepts else 'professional'} symbols, professional typography, {score}% mastery indicator, landscape format, 2048x1536",
+        "poster": f"Eye-catching promotional poster for {domain} mastery achievement, bold typography, {', '.join(concepts[:4]) if concepts else 'knowledge'} visualization, inspiring design, {score}% score prominent, suitable for sharing, 2048x1024",
+        "banner": f"Wide banner celebrating {domain} expertise, {', '.join(concepts[:3]) if concepts else 'mastery'} highlights, professional design, {score}% achievement score, suitable for profile headers, 2048x512"
+    }
+    
+    prompt = prompt_templates.get(format, prompt_templates["square"])
+    
+    try:
+        # Call ASI:One image generation API
+        ASI_IMAGE_API_URL = "https://api.asi1.ai/v1/image/generate"
+        
+        response = requests.post(
+            ASI_IMAGE_API_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {ASI_ONE_API_KEY}"
+            },
+            json={
+                "prompt": prompt,
+                "size": "1024x1024",  # Will be adjusted based on format requirements
+                "model": "asi1-mini"
+            },
+            timeout=60
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        
+        # Extract image data
+        if "images" in result and len(result["images"]) > 0:
+            image_url = result["images"][0]["url"]
+            
+            # If image_url starts with data:image, it's already base64
+            if image_url.startswith("data:image"):
+                # Extract base64 data
+                image_data = image_url.split(",", 1)[1]
+            else:
+                # If it's a URL, fetch the image and convert to base64
+                img_response = requests.get(image_url, timeout=30)
+                import base64
+                image_data = base64.b64encode(img_response.content).decode('utf-8')
+            
+            generation_time = time.time() - start_time
+            return image_data, generation_time
+        else:
+            raise ValueError("No images returned from ASI:One API")
+            
+    except Exception as e:
+        print(f"[ASI:One Image Generation Error]: {e}")
+        # Return error but don't fail - frontend will use fallback
+        return f"Error: {str(e)}", time.time() - start_time
+
+
+@agent.on_rest_post("/generate-badge-image", BadgeImageRequest, BadgeImageResponse)
+async def handle_generate_badge_image(ctx: Context, req: BadgeImageRequest) -> BadgeImageResponse:
+    """
+    REST endpoint for generating badge images using ASI:One image generation.
+    Creates unique AI-generated images based on domain, score, and user's captured concepts.
+    """
+    ctx.logger.info(f"🎨 Badge image generation requested: {req.domain} ({req.format})")
+    
+    try:
+        start_time = time.time()
+        
+        # Generate image using ASI:One
+        image_data, gen_time = generate_badge_image_with_asi(
+            domain=req.domain,
+            score=req.score,
+            node_count=req.node_count,
+            concepts=req.concepts,
+            format=req.format
+        )
+        
+        # Construct prompt used (same logic as in generate_badge_image_with_asi)
+        concepts_str = ', '.join(req.concepts[:3]) if req.concepts else 'knowledge symbols'
+        prompt_used = f"Professional achievement badge for {req.domain} mastery, featuring {concepts_str}, modern minimalist design, gradient background, {req.score}% score display, high quality digital art"
+        
+        ctx.logger.info(f"✅ Generated {req.format} badge image in {gen_time:.2f}s")
+        
+        return BadgeImageResponse(
+            image_data=image_data,
+            prompt_used=prompt_used,
+            generation_time=gen_time,
+            timestamp=int(time.time())
+        )
+    except Exception as e:
+        ctx.logger.error(f"❌ Error generating badge image: {e}")
+        return BadgeImageResponse(
+            image_data=f"Error: {str(e)}",
+            prompt_used=f"Error: {str(e)}",
+            generation_time=0.0,
+            timestamp=int(time.time())
+        )
+
 # ======= FUTURE: RAG IMPLEMENTATION =======
 # TODO: Implement RAG after vector embeddings are populated
 # async def rag_query(query: str, user_id: str) -> str:
@@ -1013,8 +1129,9 @@ print(f"🌐 Available at: http://0.0.0.0:8010")
 print(f"🔑 ASI:One API: {'✅ Set' if ASI_ONE_API_KEY else '❌ Not set'}")
 print(f"🧠 MeTTa Knowledge Graph: Initialized")
 print(f"📊 ASI:One Models: asi1-mini (extraction), asi1-graph (reasoning)")
-print(f"🎯 REST Endpoints: /explain-sentence, /graph-analysis, /detect-gaps, /generate-quiz")
+print(f"🎯 REST Endpoints: /explain-sentence, /graph-analysis, /detect-gaps, /generate-quiz, /generate-badge-image")
 print(f"💡 Proactive Nudges: Enabled (gap detection + quiz generation)")
+print(f"🎨 AI Image Generation: Enabled (ASI:One integration)")
 
 if __name__ == "__main__":
     try:

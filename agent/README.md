@@ -260,6 +260,41 @@ Analyzes the MeTTa knowledge graph using ASI:One asi1-graph model.
 }
 ```
 
+### POST /generate-badge-image
+
+Generates AI-powered badge images using ASI:One's text-to-image model. Creates unique badge visuals based on domain, score, and user's captured concepts.
+
+**Request:**
+```json
+{
+  "domain": "DeFi",
+  "score": 85,
+  "node_count": 15,
+  "concepts": ["Uniswap", "Liquidity Pool", "AMM"],
+  "format": "square"
+}
+```
+
+**Format Options:**
+- `square` - Standard badge image (1024x1024)
+- `story` - Vertical social media format (1080x1920)
+- `certificate` - Formal certificate layout (2048x1536)
+- `poster` - Promotional poster (2048x1024)
+- `banner` - Profile banner (2048x512)
+
+**Response:**
+```json
+{
+  "image_data": "base64_encoded_image_data",
+  "prompt_used": "Professional achievement badge for DeFi mastery...",
+  "generation_time": 5.23,
+  "timestamp": 1234567890
+}
+```
+
+**Timeout:** 30 seconds  
+**Fallback:** Frontend will use canvas/SVG generation if ASI generation fails
+
 ### GET /health
 
 Health check endpoint.
