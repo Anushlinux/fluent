@@ -1,6 +1,17 @@
 # Fluent Mailbox Agent
 
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
 A Python-based Mailbox Agent that uses **ASI:One** (Fetch.ai's agentic AI platform) to extract Web3 concepts, terms, and relationships from text input. This agent runs locally with mailbox functionality enabled for Agentverse connectivity.
+
+## Agent Information
+
+- **Agent Name**: FluentAgent
+- **Agent Address**: See output when starting the agent (e.g., `agent1q...`)
+- **Port**: 8010
+- **REST Endpoint**: `http://localhost:8010`
+- **Categorization**: Innovation Lab
 
 ## Features
 
@@ -20,6 +31,20 @@ A Python-based Mailbox Agent that uses **ASI:One** (Fetch.ai's agentic AI platfo
 - ASI:One API key (from Fetch.ai)
 - Internet connection for API calls
 - (Optional) Supabase account for cloud storage
+
+## Additional Resources
+
+### Required Services
+
+- **[Fetch.ai Innovation Lab](https://innovationlab.ai/)** - Innovation Lab platform for ASI:One
+- **[ASI:One Dashboard](https://fetch.ai/asi-one)** - Get your API key and manage credits
+- **[Agentverse](https://agentverse.ai)** - Agent discovery and messaging platform
+- **[MeTTa Documentation](https://github.com/trueagi-io/hyperon-experimental)** - Hyperon symbolic reasoning engine
+
+### Optional Services
+
+- **[Supabase](https://supabase.com)** - PostgreSQL database with real-time capabilities (optional for cloud storage)
+- **[Pinata](https://www.pinata.cloud/)** - IPFS pinning service for metadata storage
 
 ## Setup Instructions
 
@@ -69,14 +94,14 @@ pip install -r requirements.txt
 
 ### 6. Get ASI:One API Key
 
-1. Visit [Fetch.ai ASI:One](https://fetch.ai/asi-one) or the Innovation Lab
+1. Visit [Fetch.ai Innovation Lab](https://innovationlab.ai/) or [ASI:One Dashboard](https://fetch.ai/asi-one)
 2. Sign up or log in to your account
 3. Navigate to API Keys section
 4. Create a new API key
 5. Copy the generated key
 6. Add it to your `.env` file
 
-**Note:** ASI:One provides free tier credits for hackathons and development!
+**Note:** ASI:One provides free tier credits for hackathons and development through the Innovation Lab!
 
 ## Running the Agent
 

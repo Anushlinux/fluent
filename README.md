@@ -4,10 +4,25 @@ An intelligent learning platform that automatically captures your Web3 learning 
 
 ## 🌟 Overview
 
+
 Fluent consists of two integrated components:
 
 1. **Browser Extension** - Captures sentences while you browse and learn
 2. **Web Application** - Visualizes your captured knowledge as an interactive graph
+
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
+A Python-based Mailbox Agent that uses **ASI:One** (Fetch.ai's agentic AI platform) to extract Web3 concepts, terms, and relationships from text input. This agent runs locally with mailbox functionality enabled for Agentverse connectivity.
+
+## Agent Information
+
+- **Agent Name**: FluentAgent
+- **Agent Address**: See output when starting the agent (e.g., `agent1q...`)
+- **Port**: 8010
+- **REST Endpoint**: `http://localhost:8010`
+- **Categorization**: Innovation Lab
+
 
 All data is securely stored in Supabase and synchronized via manual sync, giving you control over when your data is uploaded.
 
