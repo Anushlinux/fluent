@@ -10,12 +10,17 @@ import StatsPanel from './StatsPanel';
 import { GraphData } from '@/lib/graphTypes';
 import { 
   getGraphDataByContext, 
-  getSentencesByContext 
+  getSentencesByContext,
+  refreshGraphForContext
 } from '@/lib/graphStorage';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { getDomainIcon } from '@/lib/domain-config';
 import { CapturedSentence } from '@/lib/graphTypes';
 import { Button } from '@/components/ui/button';
+import { RefreshCw, Award, Lock } from 'lucide-react';
+import { QuizModal } from './QuizModal';
+import { MintModal } from './MintModal';
+import { checkBadgeMinted } from '@/lib/graphStorage';
 
 interface DomainGraphViewerProps {
   domainConfig: DomainConfig;
@@ -26,7 +31,15 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
   const [filteredData, setFilteredData] = useState<GraphData | null>(null);
   const [sentences, setSentences] = useState<CapturedSentence[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [showMintModal, setShowMintModal] = useState(false);
+  const [badgeMinted, setBadgeMinted] = useState(false);
+  const [badgeState, setBadgeState] = useState<'disabled' | 'ready' | 'pending' | 'minted'>('disabled');
+  const [quizScore, setQuizScore] = useState<{ score: number; total: number; passed: boolean } | null>(null);
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
   const Icon = getDomainIcon(domainConfig.icon);
@@ -43,19 +56,22 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setIsAuthenticated(true);
-        await loadDomainData(user.id);
+        setUserId(user.id);
+        await loadDomainData(user.id, true); // Enable auto-refresh
       } else {
         setIsAuthenticated(false);
+        setUserId(null);
       }
     } else {
       // Supabase not configured, allow local access
       setIsAuthenticated(true);
+      setUserId('local'); // Use 'local' as a placeholder
     }
     
     setLoading(false);
   };
 
-  const loadDomainData = async (userId: string) => {
+  const loadDomainData = async (userId: string, autoRefresh = false) => {
     try {
       // Load filtered graph data
       const data = await getGraphDataByContext(domainConfig.id, userId);
@@ -65,6 +81,31 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
       // Load sentences for this domain
       const domainSentences = await getSentencesByContext(domainConfig.id, userId);
       setSentences(domainSentences);
+
+      // Check if badge is already minted
+      const isMinted = await checkBadgeMinted(userId, domainConfig.id);
+      setBadgeMinted(isMinted);
+
+      // Determine badge state
+      if (isMinted) {
+        setBadgeState('minted');
+      } else if (domainSentences.length >= 5) {
+        setBadgeState('pending');
+      } else {
+        setBadgeState('disabled');
+      }
+
+      // Auto-refresh: if sentences exist but no graph, automatically build the graph
+      if (autoRefresh && domainSentences.length > 0 && !data) {
+        console.log(`[Domain Graph Viewer] Auto-building graph for ${domainConfig.name}`);
+        const success = await refreshGraphForContext(domainConfig.id, userId);
+        if (success) {
+          // Reload the data after building
+          const newData = await getGraphDataByContext(domainConfig.id, userId);
+          setGraphData(newData);
+          setFilteredData(newData);
+        }
+      }
     } catch (error) {
       console.error('[Domain Graph Viewer] Failed to load data:', error);
       setGraphData(null);
@@ -73,8 +114,60 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!userId) return;
+
+    setRefreshing(true);
+    setRefreshSuccess(false);
+
+    try {
+      // Refresh the graph for this context
+      const success = await refreshGraphForContext(domainConfig.id, userId);
+      
+      if (success) {
+        setRefreshSuccess(true);
+        // Reload the data without auto-refresh (manual refresh)
+        await loadDomainData(userId, false);
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => setRefreshSuccess(false), 3000);
+      }
+    } catch (error) {
+      console.error('[Domain Graph Viewer] Failed to refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleFilterChange = (newData: GraphData) => {
     setFilteredData(newData);
+  };
+
+  const handleMintButtonClick = () => {
+    if (badgeState === 'pending') {
+      setShowQuizModal(true);
+    } else if (badgeState === 'ready') {
+      setShowMintModal(true);
+    }
+  };
+
+  const handleQuizSuccess = (score: number, total: number, questions: any[]) => {
+    const passed = (score / total) >= 0.8;
+    setQuizScore({ score, total, passed });
+    
+    if (passed) {
+      setBadgeState('ready');
+      setShowQuizModal(false);
+      setShowMintModal(true);
+    }
+  };
+
+  const handleMintSuccess = (txHash: string) => {
+    setBadgeMinted(true);
+    setBadgeState('minted');
+    setShowMintModal(false);
+    // Show toast notification (can be enhanced later)
+    console.log('Badge minted! Tx:', txHash);
   };
 
   if (loading) {
@@ -141,7 +234,30 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
         </button>
 
         {/* Domain Header */}
-        <div className="mb-12 flex flex-col items-center text-center">
+        <div className="mb-12 flex flex-col items-center text-center relative">
+          <div className="absolute top-0 right-0 flex flex-col items-end gap-2">
+            {/* Show refresh button if user has sentences for this domain, even if no graph yet */}
+            {sentences.length > 0 && userId !== 'local' && (
+              <Button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                variant="outline"
+                size="sm"
+                className="group relative"
+              >
+                <RefreshCw 
+                  className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} 
+                />
+                {refreshing ? 'Building Graph...' : hasData ? 'Refresh Graph' : 'Build Graph'}
+              </Button>
+            )}
+            {refreshSuccess && (
+              <div className="bg-green-500 text-white px-3 py-1 rounded-md text-sm animate-pulse">
+                Graph refreshed!
+              </div>
+            )}
+          </div>
+
           <div
             className="mb-6 flex h-24 w-24 items-center justify-center rounded-full shadow-2xl"
             style={{
@@ -159,6 +275,52 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
           <p className="max-w-[800px] text-lg text-foreground-secondary md:text-xl">
             {domainConfig.description}
           </p>
+
+          {/* Mint Badge Button */}
+          {userId && userId !== 'local' && (
+            <div className="mt-8">
+              <button
+                onClick={handleMintButtonClick}
+                disabled={badgeState === 'disabled' || badgeState === 'minted'}
+                className={`
+                  flex items-center gap-3 rounded-full px-6 py-3 font-semibold transition-all
+                  ${badgeState === 'minted' 
+                    ? 'bg-blue-500 text-white' 
+                    : badgeState === 'ready' 
+                    ? 'bg-green-500 text-white animate-pulse' 
+                    : badgeState === 'pending'
+                    ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                    : 'bg-gray-500 text-white cursor-not-allowed opacity-50'
+                  }
+                `}
+              >
+                {badgeState === 'minted' && (
+                  <>
+                    <Award className="h-5 w-5" />
+                    Badge Minted
+                  </>
+                )}
+                {badgeState === 'ready' && (
+                  <>
+                    <Award className="h-5 w-5" />
+                    Mint Badge
+                  </>
+                )}
+                {badgeState === 'pending' && (
+                  <>
+                    <Lock className="h-5 w-5" />
+                    Take Quiz to Mint
+                  </>
+                )}
+                {badgeState === 'disabled' && (
+                  <>
+                    <Lock className="h-5 w-5" />
+                    Collect More Data
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Empty State */}
@@ -246,6 +408,32 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
           </>
         )}
       </div>
+
+      {/* Quiz Modal */}
+      {showQuizModal && userId && (
+        <QuizModal
+          domain={domainConfig.id}
+          userId={userId}
+          onClose={() => setShowQuizModal(false)}
+          onSuccess={(score, total, questions) => handleQuizSuccess(score, total, questions)}
+        />
+      )}
+
+      {/* Mint Modal */}
+      {showMintModal && userId && quizScore && (
+        <MintModal
+          domain={domainConfig.id}
+          domainConfig={domainConfig}
+          userId={userId}
+          score={quizScore.score}
+          totalQuestions={quizScore.total}
+          onClose={() => {
+            setShowMintModal(false);
+            setQuizScore(null);
+          }}
+          onSuccess={handleMintSuccess}
+        />
+      )}
     </div>
   );
 }

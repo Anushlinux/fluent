@@ -837,3 +837,272 @@ export async function getSentencesByContext(context: string, userId: string): Pr
   }
 }
 
+/**
+ * Refresh and rebuild graph for a specific context
+ * Processes all sentences for the context and updates the graph
+ */
+export async function refreshGraphForContext(context: string, userId: string): Promise<boolean> {
+  try {
+    console.log(`[Graph Storage] Refreshing graph for context: ${context}`);
+    
+    if (!isSupabaseConfigured()) {
+      console.warn('[Graph Storage] Refresh not supported without Supabase');
+      return false;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return false;
+
+    // Get all sentences for this context
+    const sentences = await getSentencesByContext(context, userId);
+    
+    if (sentences.length === 0) {
+      console.log(`[Graph Storage] No sentences found for context: ${context}`);
+      
+      // Get existing nodes for this context first
+      const { data: existingNodes } = await supabase
+        .from('graph_nodes')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('context', context);
+      
+      const existingNodeIds = existingNodes?.map(n => n.id) || [];
+      
+      if (existingNodeIds.length > 0) {
+        // Delete edges that reference these nodes
+        // Delete edges where source is in the list
+        const sourceResults = await supabase
+          .from('graph_edges')
+          .delete()
+          .eq('user_id', userId)
+          .in('source_id', existingNodeIds);
+        
+        if (sourceResults.error) {
+          console.error('[Graph Storage] Failed to delete source edges:', sourceResults.error);
+        }
+        
+        // Delete edges where target is in the list
+        const targetResults = await supabase
+          .from('graph_edges')
+          .delete()
+          .eq('user_id', userId)
+          .in('target_id', existingNodeIds);
+        
+        if (targetResults.error) {
+          console.error('[Graph Storage] Failed to delete target edges:', targetResults.error);
+        }
+      }
+      
+      // Now delete the nodes
+      const { error: deleteNodesError } = await supabase
+        .from('graph_nodes')
+        .delete()
+        .eq('user_id', userId)
+        .eq('context', context);
+      
+      if (deleteNodesError) {
+        console.error('[Graph Storage] Failed to delete nodes:', deleteNodesError);
+        throw deleteNodesError;
+      }
+
+      return true;
+    }
+
+    // Process sentences into graph
+    const graphData = processSentencesIntoGraph(sentences);
+    
+    // Upsert nodes (insert new or update existing)
+    const nodesToUpsert = graphData.nodes.map(node => ({
+      id: node.id,
+      user_id: userId,
+      type: node.type,
+      label: node.label,
+      terms: node.terms || [],
+      context: node.context,
+      framework: node.framework,
+      timestamp: node.timestamp,
+      confidence: node.metadata.confidence,
+      quiz_completed: node.metadata.quizCompleted || false,
+    }));
+
+    if (nodesToUpsert.length > 0) {
+      const { error: upsertNodesError } = await supabase
+        .from('graph_nodes')
+        .upsert(nodesToUpsert, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        });
+
+      if (upsertNodesError) {
+        console.error('[Graph Storage] Failed to upsert nodes:', upsertNodesError);
+        throw upsertNodesError;
+      }
+    }
+
+    // Get all existing nodes to check if source/target exist
+    const { data: allNodes } = await supabase
+      .from('graph_nodes')
+      .select('id')
+      .eq('user_id', userId);
+
+    const nodeIds = new Set(allNodes?.map(n => n.id) || []);
+
+    // Delete existing edges for nodes in this context
+    const contextNodeIds = new Set(graphData.nodes.map(n => n.id));
+    
+    // Delete edges where source is in context or target is in context
+    // This ensures we clean up all edges before re-inserting
+    if (contextNodeIds.size > 0) {
+      const { error: deleteSourceEdgesError } = await supabase
+        .from('graph_edges')
+        .delete()
+        .eq('user_id', userId)
+        .in('source_id', Array.from(contextNodeIds));
+      
+      if (deleteSourceEdgesError) {
+        console.error('[Graph Storage] Failed to delete source edges:', deleteSourceEdgesError);
+      }
+
+      const { error: deleteTargetEdgesError } = await supabase
+        .from('graph_edges')
+        .delete()
+        .eq('user_id', userId)
+        .in('target_id', Array.from(contextNodeIds));
+      
+      if (deleteTargetEdgesError) {
+        console.error('[Graph Storage] Failed to delete target edges:', deleteTargetEdgesError);
+      }
+    }
+
+    // Insert edges (no need for upsert since we deleted first)
+    const edgesToInsert = graphData.edges
+      .filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+      .map(edge => ({
+        id: edge.id,
+        user_id: userId,
+        source_id: edge.source,
+        target_id: edge.target,
+        weight: edge.weight,
+        type: edge.type,
+      }));
+
+    if (edgesToInsert.length > 0) {
+      const { error: insertEdgesError } = await supabase
+        .from('graph_edges')
+        .insert(edgesToInsert);
+
+      if (insertEdgesError) {
+        console.error('[Graph Storage] Failed to insert edges:', insertEdgesError);
+        throw insertEdgesError;
+      }
+    }
+
+    // Clean up orphaned nodes (nodes in this context that are no longer in the graph)
+    const newNodeIds = new Set(graphData.nodes.map(n => n.id));
+    const { data: existingContextNodes } = await supabase
+      .from('graph_nodes')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('context', context);
+    
+    const orphanedNodeIds = (existingContextNodes || [])
+      .map(n => n.id)
+      .filter(id => !newNodeIds.has(id));
+    
+    if (orphanedNodeIds.length > 0) {
+      // Delete orphaned edges first (CASCADE will handle this, but being explicit)
+      await supabase
+        .from('graph_edges')
+        .delete()
+        .eq('user_id', userId)
+        .in('source_id', orphanedNodeIds);
+      
+      await supabase
+        .from('graph_edges')
+        .delete()
+        .eq('user_id', userId)
+        .in('target_id', orphanedNodeIds);
+      
+      // Delete orphaned nodes
+      await supabase
+        .from('graph_nodes')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', orphanedNodeIds);
+    }
+
+    console.log(`[Graph Storage] Successfully refreshed graph for context: ${context}`);
+    return true;
+  } catch (error) {
+    console.error(`[Graph Storage] Error refreshing graph for context ${context}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Insert owned NFT into database
+ */
+export async function insertOwnedNFT(
+  userId: string,
+  tokenId: number,
+  domain: string,
+  metadataUri: string,
+  txHash: string,
+  score: number,
+  nodeCount: number
+): Promise<void> {
+  try {
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) throw new Error('Supabase not configured');
+
+      const { error } = await supabase.from('owned_nfts').insert({
+        user_id: userId,
+        token_id: tokenId,
+        domain,
+        metadata_uri: metadataUri,
+        tx_hash: txHash,
+        score,
+        node_count: nodeCount,
+      });
+
+      if (error) throw new Error(`Failed to insert NFT: ${error.message}`);
+      console.log('[Graph Storage] NFT inserted successfully');
+    } else {
+      console.warn('[Graph Storage] Supabase not configured, skipping NFT insert');
+    }
+  } catch (error) {
+    console.error('[Graph Storage] Failed to insert NFT:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if user has minted a badge for a domain
+ */
+export async function checkBadgeMinted(userId: string, domain: string): Promise<boolean> {
+  try {
+    if (!isSupabaseConfigured()) return false;
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return false;
+
+    const { data, error } = await supabase
+      .from('owned_nfts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('domain', domain)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Graph Storage] Error checking badge:', error);
+      return false;
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error('[Graph Storage] Failed to check badge:', error);
+    return false;
+  }
+}
+
