@@ -344,7 +344,7 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
               <div className="md:row-span-4 md:col-span-2 min-h-[600px] md:min-h-[720px]">
                 <div className="relative h-full rounded-xl border border-border bg-card overflow-hidden shadow-lg">
                   {filteredData && (
-                    <GraphViewer data={filteredData} />
+                    <GraphViewer data={filteredData} hasMintedBadge={badgeMinted} />
                   )}
                 </div>
               </div>

@@ -10,11 +10,14 @@ import ComparisonSection from '@/components/sections/comparison';
 import DeveloperExperienceSection from '@/components/sections/developer-experience';
 import FinalCtaSection from '@/components/sections/final-cta';
 import Footer from '@/components/sections/footer';
+import { AirdropBanner } from '@/components/AirdropBanner';
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background-primary overflow-x-hidden">
       <Navigation />
+      
+      <AirdropBanner />
       
       <main className="relative overflow-x-hidden">
         <HeroSection />

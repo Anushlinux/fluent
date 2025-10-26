@@ -1106,3 +1106,58 @@ export async function checkBadgeMinted(userId: string, domain: string): Promise<
   }
 }
 
+export interface BadgeData {
+  id: string;
+  domain: string;
+  token_id: number;
+  metadata_uri: string;
+  tx_hash: string | null;
+  score: number;
+  node_count: number;
+  minted_at: string;
+}
+
+/**
+ * Get all badges for a user
+ */
+export async function getUserBadges(userId: string): Promise<BadgeData[]> {
+  try {
+    if (!isSupabaseConfigured()) {
+      console.warn('[Graph Storage] Supabase not configured');
+      return [];
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('owned_nfts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('minted_at', { ascending: false });
+
+    if (error) {
+      console.error('[Graph Storage] Error fetching badges:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    return data.map((badge: any) => ({
+      id: badge.id,
+      domain: badge.domain,
+      token_id: badge.token_id,
+      metadata_uri: badge.metadata_uri,
+      tx_hash: badge.tx_hash,
+      score: badge.score,
+      node_count: badge.node_count || 0,
+      minted_at: badge.minted_at,
+    }));
+  } catch (error) {
+    console.error('[Graph Storage] Failed to fetch badges:', error);
+    return [];
+  }
+}
+

@@ -31,9 +31,10 @@ const nodeTypes = {
 
 interface GraphViewerProps {
   data: GraphData;
+  hasMintedBadge?: boolean;
 }
 
-export default function GraphViewer({ data }: GraphViewerProps) {
+export default function GraphViewer({ data, hasMintedBadge = false }: GraphViewerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
@@ -170,7 +171,10 @@ export default function GraphViewer({ data }: GraphViewerProps) {
             x: elkNode?.x ?? 0,
             y: elkNode?.y ?? 0,
           },
-          data: node,
+          data: {
+            ...node,
+            hasMintedBadge, // Pass badge status to node
+          },
         };
       });
 
