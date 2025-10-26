@@ -95,6 +95,7 @@ export default function SignupPage() {
     }
   };
 
+
   if (success && !supabase?.auth.getSession()) {
     return (
       <div className="min-h-screen bg-background-primary flex items-center justify-center p-4">

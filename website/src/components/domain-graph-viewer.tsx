@@ -21,7 +21,6 @@ import { RefreshCw, Award, Lock } from 'lucide-react';
 import { QuizModal } from './QuizModal';
 import { MintModal } from './MintModal';
 import { checkBadgeMinted } from '@/lib/graphStorage';
-import { generateBadgeWithASI } from '@/lib/asiImageService';
 import { cacheBadgeImage, preGenerateBadgeImages } from '@/lib/imagePregeneration';
 
 interface DomainGraphViewerProps {
@@ -160,43 +159,16 @@ export function DomainGraphViewer({ domainConfig }: DomainGraphViewerProps) {
     if (passed) {
       setShowQuizModal(false);
       
-      // Pre-generate badge images
+      // Pre-generate badge images metadata
       try {
         const supabase = getSupabaseBrowserClient();
         if (userId && supabase) {
-          // Get user's concepts for rich prompts
-          const { data: nodes } = await supabase
-            .from('graph_nodes')
-            .select('terms')
-            .eq('user_id', userId)
-            .eq('context', domainConfig.id);
-          
-          const concepts = nodes?.flatMap(n => n.terms || []) || [];
-          
-          // Try to generate image with ASI
-          try {
-            const imageData = await generateBadgeWithASI({
-              domain: domainConfig.name,
-              score: Math.round((score / total) * 100),
-              nodeCount: graphData?.nodes.length || 0,
-              concepts: concepts.slice(0, 5),
-              format: 'square',
-              domainConfig,
-            });
-            
-            // Cache the generated image
-            cacheBadgeImage(userId, domainConfig.id, 'square', imageData);
-            console.log('[Domain Viewer] Pre-generated badge image successfully');
-          } catch (error) {
-            console.warn('[Domain Viewer] ASI image generation failed, will use fallback:', error);
-          }
-          
           // Store pre-generation metadata
           await preGenerateBadgeImages(userId, domainConfig.id, score, total);
         }
       } catch (error) {
-        console.error('[Domain Viewer] Image pre-generation failed:', error);
-        // Continue with minting even if image generation fails
+        console.error('[Domain Viewer] Image pre-generation metadata failed:', error);
+        // Continue with minting even if metadata fails
       }
       
       setBadgeState('ready');

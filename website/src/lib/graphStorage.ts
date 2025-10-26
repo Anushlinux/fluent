@@ -1056,18 +1056,46 @@ export async function insertOwnedNFT(
       const supabase = getSupabaseBrowserClient();
       if (!supabase) throw new Error('Supabase not configured');
 
-      const { error } = await supabase.from('owned_nfts').insert({
-        user_id: userId,
-        token_id: tokenId,
-        domain,
-        metadata_uri: metadataUri,
-        tx_hash: txHash,
-        score,
-        node_count: nodeCount,
-      });
+      // Check if badge already exists for this domain
+      const { data: existingBadge } = await supabase
+        .from('owned_nfts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('domain', domain)
+        .maybeSingle();
 
-      if (error) throw new Error(`Failed to insert NFT: ${error.message}`);
-      console.log('[Graph Storage] NFT inserted successfully');
+      if (existingBadge) {
+        // Update existing badge
+        const { error } = await supabase
+          .from('owned_nfts')
+          .update({
+            token_id: tokenId,
+            metadata_uri: metadataUri,
+            tx_hash: txHash,
+            score,
+            node_count: nodeCount,
+            minted_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .eq('domain', domain);
+
+        if (error) throw new Error(`Failed to update NFT: ${error.message}`);
+        console.log('[Graph Storage] NFT updated successfully');
+      } else {
+        // Insert new badge
+        const { error } = await supabase.from('owned_nfts').insert({
+          user_id: userId,
+          token_id: tokenId,
+          domain,
+          metadata_uri: metadataUri,
+          tx_hash: txHash,
+          score,
+          node_count: nodeCount,
+        });
+
+        if (error) throw new Error(`Failed to insert NFT: ${error.message}`);
+        console.log('[Graph Storage] NFT inserted successfully');
+      }
     } else {
       console.warn('[Graph Storage] Supabase not configured, skipping NFT insert');
     }

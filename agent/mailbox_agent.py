@@ -171,19 +171,28 @@ def extract_concepts_llm(text: str):
                         "role": "user",
                         "content": f"""Extract Web3 concepts from: {text}
 
+CRITICAL: Identify the PRIMARY context first! Contexts:
+- "DeFi": decentralized finance, DEX, yield farming, lending, liquidity, AMM, Uniswap, Compound, Aave
+- "DAO": decentralized autonomous organization, governance, voting, treasury, proposals
+- "SmartContract": Ethereum, Solana, protocol, dApp, oracle, Layer 2, rollups
+- "NFT": non-fungible token, digital collectibles, ERC-721, metadata, royalties
+- "Blockchain": consensus, mining, staking, nodes, wallet, validator
+- "Web3": general Web3 concepts without specific domain
+- "General": Only if NO Web3 connection found
+
 Respond with ONLY this JSON structure (no markdown, no explanation):
 {{
-  "terms": ["term1", "term2"],
-  "context": "DeFi|NFT|SmartContract|Web3|General",
+  "terms": ["term1", "term2", "term3", "term4", "term5"],
+  "context": "Exact match to context list above",
   "relations": [["subject", "predicate", "object"]]
 }}
 
-Maximum 5 terms. Keep relations concise."""
+Extract up to 8 terms. Identify MINIMUM 2-3 relations."""
                     }
                 ],
                 "response_format": {"type": "json_object"},
                 "temperature": 0.7,
-                "max_tokens": 200
+                "max_tokens": 400
             },
             timeout=30
         )
@@ -203,12 +212,12 @@ Maximum 5 terms. Keep relations concise."""
 
 
 def asi_one_explain(text: str, known_concepts: list = None) -> str:
-    """Use ASI:One asi1-mini for concise explanations."""
+    """Use ASI:One asi1-mini for detailed explanations."""
     try:
         if known_concepts and len(known_concepts) > 0:
-            prompt = f"User knows: {', '.join(known_concepts[:3])}. Explain this Web3 concept in ONE clear sentence (max 25 words): {text}"
+            prompt = f"User knows: {', '.join(known_concepts[:3])}. Provide a clear, detailed explanation of this Web3 concept (3-4 sentences, max 150 words): {text}"
         else:
-            prompt = f"Explain this Web3 concept in ONE simple sentence for beginners (max 25 words): {text}"
+            prompt = f"Provide a clear, beginner-friendly explanation of this Web3 concept (3-4 sentences, max 150 words): {text}"
         
         response = requests.post(
             ASI_ONE_API_URL,
@@ -221,12 +230,12 @@ def asi_one_explain(text: str, known_concepts: list = None) -> str:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a concise Web3 educator. Explain concepts in ONE sentence maximum. Be direct and clear."
+                        "content": "You are a helpful Web3 educator. Provide clear, detailed explanations that help users understand blockchain concepts. Be informative and educational."
                     },
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.7,
-                "max_tokens": 100
+                "max_tokens": 250
             },
             timeout=30
         )
@@ -234,10 +243,6 @@ def asi_one_explain(text: str, known_concepts: list = None) -> str:
         response.raise_for_status()
         result = response.json()
         explanation = result['choices'][0]['message']['content'].strip()
-        
-        # Ensure single sentence
-        if '.' in explanation:
-            explanation = explanation.split('.')[0] + '.'
         
         return explanation
     except Exception as e:

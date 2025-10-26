@@ -3,7 +3,7 @@
  * Handles MetaMask connection and Base Sepolia network setup
  */
 
-import { BrowserProvider, Contract, JsonRpcSigner } from 'ethers';
+import { BrowserProvider, Contract, JsonRpcSigner, Interface } from 'ethers';
 
 // FluentBadges contract ABI
 const FluentBadgesABI = [
@@ -28,13 +28,6 @@ const FluentBadgesABI = [
     ],
     name: "BadgeMinted",
     type: "event"
-  },
-  {
-    inputs: [],
-    name: "nextTokenId",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function"
   },
   {
     inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
@@ -178,7 +171,7 @@ export async function mintBadge(
   userAddress: string,
   tokenURI: string,
   domain: string
-): Promise<string> {
+): Promise<{ txHash: string; tokenId: number }> {
   const signer = walletState.signer;
   if (!signer) {
     throw new Error('Wallet not connected. Please connect your MetaMask wallet.');
@@ -212,7 +205,37 @@ export async function mintBadge(
     const receipt = await tx.wait(1);
     
     console.log('[Mint] Transaction confirmed:', receipt.hash);
-    return receipt.hash;
+    
+    // Parse the BadgeMinted event to get the token ID
+    let tokenId = 0;
+    if (receipt.logs && receipt.logs.length > 0) {
+      const eventInterface = new Interface(FluentBadgesABI);
+      for (const log of receipt.logs) {
+        try {
+          const decoded = eventInterface.parseLog({
+            topics: log.topics as string[],
+            data: log.data
+          });
+          
+          if (decoded && decoded.name === 'BadgeMinted') {
+            // Event signature: BadgeMinted(address indexed to, uint256 tokenId, string uri, string domain)
+            // args[0] = to (address)
+            // args[1] = tokenId (uint256)
+            tokenId = Number(decoded.args[1]); // Second arg is tokenId (first is 'to' address)
+            console.log('[Mint] Token ID from event:', tokenId);
+            break;
+          }
+        } catch (e) {
+          console.error('[Mint] Failed to parse log:', e);
+        }
+      }
+    }
+
+    if (tokenId === 0) {
+      throw new Error('Failed to extract token ID from transaction receipt');
+    }
+    
+    return { txHash: receipt.hash, tokenId };
   } catch (error: any) {
     console.error('[Mint] Failed to mint badge:', error);
     
@@ -247,7 +270,7 @@ export async function getTransactionStatus(txHash: string): Promise<{
 
   return {
     status: receipt.status === 1 ? 'confirmed' : 'failed',
-    confirmations: receipt.confirmations,
+    confirmations: Number(receipt.confirmations),
   };
 }
 

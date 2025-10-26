@@ -149,7 +149,7 @@ const HeroSection = () => {
               <line x1="0" y1="0" x2="100%" y2="0" strokeWidth="1" />
             </svg>
           </div>
-          <div className="mx-auto w-full pt-2">
+          <div className="mx-auto w-full max-w-[1480px] pt-2">
             <div className="flex items-center justify-center relative overflow-hidden border-b border-border md:rounded-2xl md:border-0 min-h-[720px] md:min-h-[800px]" style={{ backgroundColor: '#ff4e00' }}>
               
               {/* WebGL Canvas Background */}

@@ -79,22 +79,22 @@ export function MintModal({
         throw new Error('No account connected');
       }
 
-      const hash = await mintBadge(contractAddress, account, uri, domain);
-      setTxHash(hash);
+      const { txHash, tokenId } = await mintBadge(contractAddress, account, uri, domain);
+      setTxHash(txHash);
 
       // Insert into database
       await insertOwnedNFT(
         userId,
-        0, // Token ID will be updated by contract
+        tokenId, // Use actual token ID from contract
         domain,
         uri,
-        hash,
+        txHash,
         score,
         totalQuestions
       );
 
       setState('success');
-      onSuccess(hash);
+      onSuccess(txHash);
     } catch (err: any) {
       console.error('[Mint] Failed to mint:', err);
       setError(err.message || 'Failed to mint badge');

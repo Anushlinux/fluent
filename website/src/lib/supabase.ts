@@ -20,7 +20,13 @@ export function getSupabaseBrowserClient() {
   // Check if Supabase is configured
   if (!supabaseUrl || !supabaseAnonKey || 
       supabaseUrl === 'https://your-project.supabase.co' ||
-      supabaseAnonKey === 'your-anon-key') {
+      supabaseUrl === 'your_supabase_url_here' ||
+      supabaseUrl.includes('your-') ||
+      supabaseUrl.includes('your_') ||
+      supabaseAnonKey === 'your-anon-key' ||
+      supabaseAnonKey === 'your_supabase_anon_key_here' ||
+      supabaseAnonKey.includes('your-') ||
+      supabaseAnonKey.includes('your_')) {
     console.warn('[Supabase] Not configured. Graph features will use local storage only.');
     return null;
   }

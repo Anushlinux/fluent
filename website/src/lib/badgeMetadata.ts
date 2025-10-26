@@ -6,7 +6,6 @@
 import { getSupabaseBrowserClient } from './supabase';
 import { DomainConfig } from './domain-config';
 import axios from 'axios';
-import { generateWithFallback } from './asiImageService';
 import { getCachedBadgeImage } from './imagePregeneration';
 
 export interface BadgeMetadata {
@@ -84,26 +83,12 @@ export async function generateBadgeMetadata(
   // Get next token ID (mock for now, real ID comes from blockchain)
   const tokenId = Math.floor(Math.random() * 10000) + 1; // TODO: Get from contract
 
-  // Try to get cached image first, then try ASI generation, fallback to placeholder
+  // Try to get cached image first, otherwise use placeholder
   let badgeImage = await getCachedBadgeImage(userId, domain, 'square');
   
   if (!badgeImage) {
-    // Extract concepts from nodes
-    const concepts = nodes?.flatMap(n => n.terms || []) || [];
-    
-    try {
-      badgeImage = await generateWithFallback({
-        domain: domainConfig.name,
-        score: Math.round(score),
-        nodeCount,
-        concepts: concepts.slice(0, 5),
-        format: 'square',
-        domainConfig,
-      });
-    } catch (error) {
-      console.warn('[BadgeMetadata] Image generation failed, using placeholder:', error);
-      badgeImage = generatePlaceholderImage(domainConfig);
-    }
+    // Use placeholder SVG generation
+    badgeImage = generatePlaceholderImage(domainConfig, Math.round(score), nodeCount);
   }
 
   const metadata: BadgeMetadata = {

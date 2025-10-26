@@ -35,9 +35,30 @@ export async function GET(request: Request) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
+    if (!error && data.session) {
+      // Check if profile exists, create if not (for OAuth users)
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', data.session.user.id)
+        .single();
+      
+      if (!existingProfile) {
+        // Create profile if it doesn't exist (for OAuth sign-ups)
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{ 
+            id: data.session.user.id, 
+            email: data.session.user.email 
+          }]);
+        
+        if (profileError) {
+          console.error('Failed to create profile:', profileError);
+        }
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

@@ -93,6 +93,9 @@ Add to `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 
+# Note: Google OAuth is configured in Supabase Dashboard
+# See GOOGLE_OAUTH_SETUP.md for setup instructions
+
 # Badge System
 NEXT_PUBLIC_BADGE_CONTRACT_ADDRESS=0x... # After deployment
 NEXT_PUBLIC_BASE_SEPOLIA_RPC=https://sepolia.base.org

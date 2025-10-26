@@ -931,10 +931,10 @@ function showSelectionButton(range: Range): void {
   
   selectionButton = document.createElement('button');
   selectionButton.className = 'fluent-selection-button';
-  selectionButton.innerHTML = '<span class="fluent-selection-button__icon">✨</span>';
+  selectionButton.innerHTML = '<span class="fluent-selection-button__icon">→</span>';
   selectionButton.style.position = 'absolute';
   selectionButton.style.left = `${rect.right + window.scrollX + 12}px`;
-  selectionButton.style.top = `${rect.top + window.scrollY + (rect.height / 2) - 24}px`;
+  selectionButton.style.top = `${rect.top + window.scrollY + (rect.height / 2) - 20}px`;
   selectionButton.setAttribute('aria-label', 'Get AI explanation for this selection');
   selectionButton.setAttribute('title', 'Ask AI');
   
