@@ -1,4 +1,5 @@
 import React from 'react';
+import Dither from '../Dither';
 
 const HeroSection = () => {
   return (
@@ -15,26 +16,23 @@ const HeroSection = () => {
             </svg>
           </div>
           <div className="mx-auto w-full max-w-[1480px] pt-2">
-            <div className="bg-primary flex items-center justify-center relative overflow-hidden border-b border-border md:rounded-2xl md:border-0 min-h-[640px] md:min-h-[720px] pt-12">
-              <div
-                data-id="canvas"
-                data-us-project="hKMQx3xwg1G1DMk0IUfA"
-                data-us-production="true"
-                className="absolute inset-0 w-full h-full min-h-[800px] min-w-[1080px] m-auto z-0"
-                style={{
-                  maskImage: 'radial-gradient(ellipse at 50% 100%, black 80%, transparent)',
-                }}
-              >
-                <canvas
-                  width="2220"
-                  height="1200"
-                  aria-label="Unicorn Studio Scene"
-                  role="img"
-                  className="w-full h-full"
-                ></canvas>
+            <div className="bg-primary flex items-center justify-center relative overflow-hidden border-b border-border md:rounded-2xl md:border-0 min-h-[640px] md:min-h-[720px]">
+              {/* Dither Animation Overlay */}
+              <div className="absolute inset-0 w-full h-full z-0">
+                <Dither
+                  waveColor={[1.0, 0.5, 0.2]}
+                  disableAnimation={false}
+                  enableMouseInteraction={true}
+                  mouseRadius={0.3}
+                  colorNum={4}
+                  waveAmplitude={0.3}
+                  waveFrequency={3}
+                  waveSpeed={0.05}
+                />
               </div>
 
-              <div className="relative z-10 flex h-full flex-col items-center justify-center gap-10 overflow-hidden px-2 py-6 text-center md:p-8 lg:p-12 xl:p-16">
+              {/* Content Overlay */}
+              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-10 overflow-hidden px-2 py-6 text-center pt-12 md:p-8 lg:p-12 xl:p-16">
                 <div className="relative flex h-full flex-col items-center justify-center gap-10">
                   <h1 className="text-primary-foreground max-w-[1080px] text-balance">
                     Transform your Web3 learning into a powerful knowledge graph
