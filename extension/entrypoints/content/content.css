@@ -698,6 +698,16 @@
   animation: fluent-topbar-appear 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
+                0 2px 8px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
 @keyframes fluent-topbar-appear {
   from {
     opacity: 0;
@@ -721,6 +731,13 @@
   -webkit-backdrop-filter: blur(10px);
 }
 
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__header {
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  }
+}
+
 .fluent-ai-topbar__title {
   display: flex;
   align-items: center;
@@ -738,6 +755,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   letter-spacing: -0.02em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__text {
+    color: #ffffff;
+    font-weight: 700;
+  }
 }
 
 .fluent-ai-topbar__actions {
@@ -767,6 +791,18 @@
   color: #1a1a1a;
 }
 
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__close {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+  }
+  
+  .fluent-ai-topbar__close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+}
+
 .fluent-ai-topbar__content {
   padding: 24px;
   overflow-y: auto;
@@ -774,6 +810,13 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1a1a1a;
   background: rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__content {
+    background: rgba(0, 0, 0, 0.1);
+    color: #e0e0e0;
+  }
 }
 
 .fluent-ai-topbar__content::-webkit-scrollbar {
@@ -907,6 +950,16 @@
   margin: 0 0 16px 0;
 }
 
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__explanation {
+    color: #e0e0e0;
+  }
+  
+  .fluent-ai-topbar__explanation p {
+    color: #e0e0e0;
+  }
+}
+
 .fluent-ai-topbar__concepts {
   margin-bottom: 20px;
 }
@@ -932,6 +985,14 @@
   background: rgba(255, 78, 0, 0.12);
   border-color: rgba(255, 78, 0, 0.2);
   transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__tag {
+    background: rgba(255, 78, 0, 0.2);
+    border: 1px solid rgba(255, 78, 0, 0.4);
+    color: #ff8855;
+  }
 }
 
 .fluent-ai-topbar__footer {
@@ -1135,6 +1196,23 @@
   background: rgba(255, 255, 255, 0.25);
   border-color: rgba(255, 255, 255, 0.4);
   box-shadow: 0 0 0 3px rgba(255, 78, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .fluent-ai-topbar__chat-input input {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+  }
+  
+  .fluent-ai-topbar__chat-input input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  
+  .fluent-ai-topbar__chat-input input:focus {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
 }
 
 .fluent-ai-topbar__chat-send {
