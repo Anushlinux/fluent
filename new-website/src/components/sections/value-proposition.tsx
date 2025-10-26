@@ -63,11 +63,11 @@ const ValueProposition = () => {
             <div className="flex flex-col items-center justify-center">
                 <div className="mx-auto flex max-w-[1080px] flex-col items-center text-center">
                     <h3 className="group text-balance text-foreground-primary">
-                        The cloud that works for developers, not the other way around
+                        Learning that works for you, not the other way around
                         <CopyLinkButton />
                     </h3>
                     <p className="mt-4 text-balance whitespace-pre-line text-body-lg text-foreground-primary/70">
-                        Deploy serverless functions, frontends, containers, and databases to 330+ cities with one command using This project of fluent.
+                        Capture knowledge effortlessly while browsing, build connections automatically with AI, and see your entire learning journey visualized in one powerful graph.
                     </p>
                 </div>
             </div>

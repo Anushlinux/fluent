@@ -2,10 +2,11 @@
 
 import type { FC } from 'react';
 import { useState, useEffect } from 'react';
-import { Globe, MapPin, Server, RefreshCw } from 'lucide-react';
-import GraphViewer from '@/components/GraphViewer';
-import { GraphData } from '@/lib/graphTypes';
-import { getGraphData } from '@/lib/graphStorage';
+import { Globe, MapPin, Server } from 'lucide-react';
+import { domainConfigs } from '@/lib/domain-config';
+import { DomainCard } from '@/components/domain-card';
+import { getAvailableDomains } from '@/lib/graphStorage';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 const Card = ({
   icon: Icon,
@@ -25,64 +26,54 @@ const Card = ({
   </div>
 );
 
-const GlobalNetwork: FC = () => {
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+interface DomainCount {
+  context: string;
+  count: number;
+}
 
-  // Load initial data
+const GlobalNetwork: FC = () => {
+  const [domainCounts, setDomainCounts] = useState<DomainCount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const supabase = getSupabaseBrowserClient();
+
   useEffect(() => {
-    loadGraphData();
+    checkAuthAndLoadData();
   }, []);
 
-  const loadGraphData = async () => {
-    try {
-      setLoading(true);
-      
-      // Try to load existing graph data
-      const data = await getGraphData();
-      
-      if (data && data.nodes.length > 0) {
-        setGraphData(data);
+  const checkAuthAndLoadData = async () => {
+    setLoading(true);
+    
+    if (supabase) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setIsAuthenticated(true);
+        await loadDomains(user.id);
       } else {
-        // Create empty graph data
-        const emptyData: GraphData = {
-          nodes: [],
-          edges: [],
-          stats: {
-            totalSentences: 0,
-            topicCount: 0,
-            avgLinkStrength: 0,
-          },
-        };
-        setGraphData(emptyData);
+        setIsAuthenticated(false);
+        setDomainCounts([]);
       }
+    } else {
+      setIsAuthenticated(true);
+      setDomainCounts([]);
+    }
+    
+    setLoading(false);
+  };
+
+  const loadDomains = async (userId: string) => {
+    try {
+      const counts = await getAvailableDomains(userId);
+      setDomainCounts(counts);
     } catch (error) {
-      console.error('[Global Network] Failed to load data:', error);
-      
-      // Fallback to empty data
-      const emptyData: GraphData = {
-        nodes: [],
-        edges: [],
-        stats: {
-          totalSentences: 0,
-          topicCount: 0,
-          avgLinkStrength: 0,
-        },
-      };
-      setGraphData(emptyData);
-    } finally {
-      setLoading(false);
+      console.error('[Global Network] Failed to load domains:', error);
+      setDomainCounts([]);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await loadGraphData();
-    } finally {
-      setRefreshing(false);
-    }
+  const getDomainCount = (domainId: string): number => {
+    const count = domainCounts.find(c => c.context === domainId);
+    return count?.count || 0;
   };
 
   return (
@@ -100,56 +91,67 @@ const GlobalNetwork: FC = () => {
         {/* Header */}
         <div className="mx-auto flex max-w-[640px] flex-col items-center text-center">
           <h3 className="text-4xl font-semibold -tracking-[0.01em] text-foreground-primary md:text-5xl">
-            Region: Earth
+            Explore Your Knowledge Domains
           </h3>
           <p className="mt-4 max-w-[500px] text-lg text-foreground-secondary md:text-xl">
-            Our smart network positions your workloads optimally — close to users, close to data.
+            Navigate through different Web3 domains to explore your captured knowledge and understanding.
           </p>
         </div>
 
-        {/* Interactive Knowledge Graph */}
-        <div className="relative w-full max-w-6xl">
-          <div className="relative">
-            {/* Refresh Button Overlay */}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="absolute top-4 right-4 z-10 inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-all ease-out duration-200 rounded-full bg-white/80 backdrop-blur-sm text-accent-foreground hover:bg-white active:scale-[0.98] px-4 py-2 text-sm border border-primary/20"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh Graph'}
-            </button>
+        {/* Domain Grid */}
+        {loading ? (
+          <div className="w-full flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-foreground-secondary">Loading domains...</p>
+            </div>
+          </div>
+        ) : !isAuthenticated && supabase ? (
+          <div className="w-full max-w-md">
+            <div className="bg-background border border-border rounded-lg p-12 text-center">
+              <div className="text-5xl mb-6">📚</div>
+              <h4 className="text-lg font-semibold text-foreground-primary mb-2">
+                Sign In to View Your Domains
+              </h4>
+              <p className="text-body text-foreground-primary/70">
+                Sign in to access your personalized knowledge domains.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {domainConfigs.map((domain) => {
+                const count = getDomainCount(domain.id);
+                const isEmpty = count === 0;
+                
+                return (
+                  <DomainCard
+                    key={domain.id}
+                    domain={domain}
+                    sentenceCount={count}
+                    isEmpty={isEmpty}
+                  />
+                );
+              })}
+            </div>
 
-            {/* Graph Viewer */}
-            {graphData && (
-              <GraphViewer data={graphData} />
-            )}
-
-            {/* Empty State */}
-            {graphData && graphData.nodes.length === 0 && !loading && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center p-8 bg-white/80 backdrop-blur-sm rounded-2xl border border-primary/20">
-                  <div className="text-4xl mb-4">📊</div>
+            {/* Empty State - if all domains are empty */}
+            {domainCounts.length === 0 && isAuthenticated && (
+              <div className="mt-12 text-center">
+                <div className="bg-background/50 border border-border rounded-lg p-8 max-w-md mx-auto">
+                  <div className="text-4xl mb-4">🌐</div>
                   <h4 className="text-lg font-semibold text-foreground-primary mb-2">
-                    No Knowledge Data Yet</h4>
-                  <p className="text-body text-foreground-secondary mb-4">
-                    Start capturing sentences to build your knowledge graph.
+                    Start Your Learning Journey
+                  </h4>
+                  <p className="text-body text-foreground-primary/70">
+                    Capture your first sentence to begin building your knowledge graph across these domains.
                   </p>
                 </div>
               </div>
             )}
-
-            {/* Loading State */}
-            {loading && (
-              <div className="bg-gradient-to-br from-[#fefef9] to-[#f9f9f4] border border-border-light rounded-2xl overflow-hidden shadow-lg h-[500px] md:h-[700px] flex items-center justify-center">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-foreground-secondary">Loading knowledge graph...</p>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
         {/* Feature Cards */}
         <div className="w-full rounded-2xl border border-border bg-card p-6 md:p-10">

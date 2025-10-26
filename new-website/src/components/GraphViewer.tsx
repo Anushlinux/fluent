@@ -217,8 +217,8 @@ export default function GraphViewer({ data }: GraphViewerProps) {
 
   if (loading) {
     return (
-      <div className="relative h-[500px] md:h-[700px]">
-        <div className="bg-gradient-to-br from-[#fefef9] to-[#f9f9f4] border border-border-light rounded-2xl overflow-hidden shadow-lg h-full flex items-center justify-center">
+      <div className="relative h-full">
+        <div className="bg-gradient-to-br from-[#fefef9] to-[#f9f9f4] border border-border-light overflow-hidden shadow-lg h-full flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-foreground-secondary">Building graph layout...</p>
@@ -229,7 +229,7 @@ export default function GraphViewer({ data }: GraphViewerProps) {
   }
 
   return (
-    <div className="relative h-[500px] md:h-[700px]">
+    <div className="relative h-full w-full min-h-[600px] md:min-h-[720px]">
       <style>{`
         /* Custom handle styling for subtle appearance */
         .react-flow__handle {
@@ -243,8 +243,16 @@ export default function GraphViewer({ data }: GraphViewerProps) {
           background: #ff4e00 !important;
           border-color: #ff4e00 !important;
         }
+        .react-flow__viewport {
+          min-height: 600px !important;
+        }
+        @media (min-width: 768px) {
+          .react-flow__viewport {
+            min-height: 720px !important;
+          }
+        }
       `}</style>
-      <div className="bg-gradient-to-br from-[#fefef9] to-[#f9f9f4] border border-border-light rounded-2xl overflow-hidden shadow-lg h-full w-full">
+      <div className="bg-gradient-to-br from-[#fefef9] to-[#f9f9f4] border border-border-light overflow-hidden shadow-lg h-full w-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -255,7 +263,7 @@ export default function GraphViewer({ data }: GraphViewerProps) {
           fitView
           minZoom={0.1}
           maxZoom={2}
-          className="bg-[#fefef9]"
+          className="bg-[#fefef9] h-full w-full"
         >
           <Background 
             variant={BackgroundVariant.Dots}

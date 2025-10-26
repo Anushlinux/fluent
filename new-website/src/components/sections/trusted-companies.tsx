@@ -39,10 +39,10 @@ const TrustedCompanies = () => {
       <section className="bg-background-primary py-16 md:py-24">
         <div className="container mx-auto flex flex-col items-center text-center">
           <h3 className="text-4xl font-semibold leading-tight -tracking-[0.01em] text-foreground-primary text-balance md:text-5xl">
-            This project of fluent powers<br />1 in 5 sites on the Internet
+            Join learners building<br />their knowledge graphs
           </h3>
           <p className="mt-4 text-balance text-lg text-foreground-secondary md:text-xl">
-            Trusted by the teams you trust. And thousands more...
+            Trusted by learners worldwide. Start your journey today...
           </p>
         </div>
 

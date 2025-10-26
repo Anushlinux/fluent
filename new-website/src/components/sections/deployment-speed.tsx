@@ -50,12 +50,12 @@ const DeploymentSpeed = () => {
             <h3 className="text-foreground-primary/90 text-balance font-semibold -tracking-tight text-3xl md:text-5xl lg:leading-[1.1]">
               Go from{" "}
               <span className="bg-gradient-to-r from-[#ff5722] to-[#ffb347] bg-clip-text text-transparent">
-                localhost → global
+                first sentence → knowledge graph
               </span>{" "}
-              in minutes
+              in seconds
             </h3>
             <p className="text-body-lg text-foreground-secondary text-balance">
-              No DevOps. Minimal cold starts. No surprise bills.
+              No setup. Automatic connections. AI-powered insights.
             </p>
           </div>
         </div>
@@ -66,18 +66,18 @@ const DeploymentSpeed = () => {
             <div className="bg-card border-border-light flex h-full grow flex-col justify-between rounded-lg border p-6 md:p-8">
               <div>
                 <h5 className="text-[22px] font-semibold text-foreground-primary">
-                  From first line to full scale
+                  From first sentence to full knowledge graph
                 </h5>
                 <p className="mt-2 text-body text-foreground-secondary">
-                  Deploy working code in seconds or start from hundreds of
-                  templates — all built to scale.
+                  Capture knowledge effortlessly while browsing or start with empty knowledge 
+                  — watch your graph grow with every sentence.
                 </p>
               </div>
               <a
                 href="#"
                 className="group mt-6 flex w-fit items-center text-sm font-medium text-primary"
               >
-                See templates
+                Install extension
                 <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </a>
             </div>
@@ -91,18 +91,17 @@ const DeploymentSpeed = () => {
                 </div>
                 <code className="block">
                   <span className="text-foreground-secondary">
-                    ~/workspace/multiplayer-app git:(
-                    <span className="text-blue-500">main</span>)
+                    Ready to capture! Click to highlight a sentence...
                   </span>
                   <br />
                   <span>
-                    $ npx wrangler deploy
+                    Connected nodes: 142
                     <span className="ml-1 inline-block h-4 w-2 translate-y-0.5 animate-pulse bg-foreground-primary"></span>
                   </span>
                 </code>
               </div>
               <h5 className="mt-6 text-center text-lg font-semibold text-foreground-primary md:text-xl">
-                Deploy with one command
+                Your graph grows as you learn
               </h5>
             </div>
           </div>
@@ -134,15 +133,13 @@ const DeploymentSpeed = () => {
 
               <pre className="text-code relative z-10 leading-6">
                 <code>
-                  <span className="text-orange-600">import</span> {"{ Ai }"} <span className="text-orange-600">from</span> <span className="text-green-700">{"'@cloudflare/ai'"}</span>;{'\n\n'}
-                  <span className="text-purple-600">export</span> <span className="text-purple-600">interface</span> <span className="text-teal-500">Env</span> {'{\n'}
-                  {'  '}AI: <span className="text-teal-500">any</span>;{'\n'}
-                  {'}\n\n'}
-                  <span className="text-purple-600">export</span> <span className="text-purple-600">default</span> {'{\n'}
-                  {'  '}<span className="text-purple-600">async</span> fetch(request: <span className="text-teal-500">Request</span>, env: <span className="text-teal-500">Env</span>): <span className="text-teal-500">Promise</span>&lt;<span className="text-teal-500">void</span>&gt; {'{\n'}
-                  {'    '}<span className="text-purple-600">const</span> ai = <span className="text-purple-600">new</span> Ai(env.AI);{'\n'}
-                  {'  }\n'}
-                  {'}'};
+                  <span className="text-orange-600">// Fluent automatically captures and connects</span>{'\n'}
+                  <span className="text-purple-600">const</span> <span className="text-blue-500">sentence</span> = <span className="text-green-700">"Uniswap uses AMM for liquidity"</span>;{'\n\n'}
+                  <span className="text-orange-600">// Detected terms: Uniswap, AMM, liquidity</span>{'\n'}
+                  <span className="text-purple-600">const</span> <span className="text-blue-500">nodes</span> = <span className="text-blue-500">createNodes</span>(sentence);{'\n'}
+                  <span className="text-purple-600">const</span> <span className="text-blue-500">edges</span> = <span className="text-blue-500">findConnections</span>(nodes);{'\n\n'}
+                  <span className="text-orange-600">// Graph updated in real-time</span>{'\n'}
+                  <span className="text-purple-600">return</span> {'{'} nodes, edges {'}'};
                 </code>
               </pre>
             </div>
@@ -157,19 +154,19 @@ const DeploymentSpeed = () => {
               />
               <div className="relative z-10">
                 <h5 className="text-[22px] font-semibold text-foreground-primary">
-                  Let it spike. We got you.
+                  Learn freely. We capture it.
                 </h5>
                 <p className="mt-2 text-body text-foreground-secondary">
-                  Your application runs globally, handles millions of requests,
-                  and scales without you thinking about it.
+                  Your knowledge graph grows organically, connects concepts automatically,
+                  and scales with every sentence you capture.
                 </p>
               </div>
               <div className="relative z-10 mt-6">
                 <p className="text-4xl font-bold text-primary">
-                  <AnimatedCounter value={664} />
+                  <AnimatedCounter value={142} />
                 </p>
                 <p className="text-sm text-foreground-secondary">
-                  requests per second
+                  knowledge nodes connected
                 </p>
               </div>
             </div>

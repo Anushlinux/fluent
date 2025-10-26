@@ -14,56 +14,59 @@ export default function StatsPanel({ data }: StatsPanelProps) {
     : '0';
 
   return (
-    <div className="bg-black border border-white/20 rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-white mb-4">Learning Statistics</h2>
+    <div className="bg-card border border-border rounded-lg p-4 h-full flex flex-col overflow-auto">
+      <h2 className="text-base font-semibold text-foreground-primary mb-3">Learning Statistics</h2>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Total Sentences */}
-        <div className="bg-black border border-white/20 rounded-lg p-4">
-          <div className="text-3xl font-bold text-white">
-            {data.stats.totalSentences}
+      <div className="flex flex-col gap-2 flex-shrink-0">
+        {/* Stats Grid - 2x2 */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Total Sentences */}
+          <div className="bg-background-primary border border-border rounded-lg p-3">
+            <div className="text-2xl font-bold text-foreground-primary">
+              {data.stats.totalSentences}
+            </div>
+            <div className="text-xs text-foreground-secondary mt-0.5">
+              Sentences
+            </div>
           </div>
-          <div className="text-sm text-white/70 mt-1">
-            Sentences Captured
-          </div>
-        </div>
 
-        {/* Topics */}
-        <div className="bg-black border border-white/20 rounded-lg p-4">
-          <div className="text-3xl font-bold text-white">
-            {data.stats.topicCount}
+          {/* Topics */}
+          <div className="bg-background-primary border border-border rounded-lg p-3">
+            <div className="text-2xl font-bold text-foreground-primary">
+              {data.stats.topicCount}
+            </div>
+            <div className="text-xs text-foreground-secondary mt-0.5">
+              Topics
+            </div>
           </div>
-          <div className="text-sm text-white/70 mt-1">
-            Topics Explored
-          </div>
-        </div>
 
-        {/* Link Strength */}
-        <div className="bg-black border border-white/20 rounded-lg p-4">
-          <div className="text-3xl font-bold text-white">
-            {Math.round(data.stats.avgLinkStrength * 100)}%
+          {/* Link Strength */}
+          <div className="bg-background-primary border border-border rounded-lg p-3">
+            <div className="text-2xl font-bold text-foreground-primary">
+              {Math.round(data.stats.avgLinkStrength * 100)}%
+            </div>
+            <div className="text-xs text-foreground-secondary mt-0.5">
+              Link Strength
+            </div>
           </div>
-          <div className="text-sm text-white/70 mt-1">
-            Avg Link Strength
-          </div>
-        </div>
 
-        {/* Knowledge Density */}
-        <div className="bg-black border border-white/20 rounded-lg p-4">
-          <div className="text-3xl font-bold text-white">
-            {linkDensity}
-          </div>
-          <div className="text-sm text-white/70 mt-1">
-            Links per Node
+          {/* Knowledge Density */}
+          <div className="bg-background-primary border border-border rounded-lg p-3">
+            <div className="text-2xl font-bold text-foreground-primary">
+              {linkDensity}
+            </div>
+            <div className="text-xs text-foreground-secondary mt-0.5">
+              Links/Node
+            </div>
           </div>
         </div>
       </div>
 
       {/* Date Range */}
       {dateRange && (
-        <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-lg">
-          <div className="text-sm text-white/70">
-            <span className="font-medium text-white">Learning Period:</span>{' '}
+        <div className="mt-3 p-3 bg-accent/30 border border-border rounded-lg flex-shrink-0">
+          <div className="text-xs text-foreground-secondary">
+            <span className="font-medium text-foreground-primary">Period:</span>{' '}
             {new Date(dateRange.start).toLocaleDateString()} -{' '}
             {new Date(dateRange.end).toLocaleDateString()}
           </div>
@@ -72,11 +75,11 @@ export default function StatsPanel({ data }: StatsPanelProps) {
 
       {/* Journey Insights */}
       {data.stats.totalSentences > 0 && (
-        <div className="mt-4 p-4 bg-white/10 border border-white/20 rounded-lg text-white">
-          <div className="font-medium">
-            🎯 Your Learning Journey
+        <div className="mt-3 p-3 bg-accent/20 border border-border rounded-lg flex-shrink-0">
+          <div className="text-sm font-medium text-foreground-primary mb-1">
+            🎯 Journey
           </div>
-          <div className="text-sm mt-1 opacity-90">
+          <div className="text-xs text-foreground-secondary">
             {generateInsight(data)}
           </div>
         </div>

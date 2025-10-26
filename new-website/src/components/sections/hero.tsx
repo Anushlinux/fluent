@@ -37,18 +37,18 @@ const HeroSection = () => {
               <div className="relative z-10 flex h-full flex-col items-center justify-center gap-10 overflow-hidden px-2 py-6 text-center md:p-8 lg:p-12 xl:p-16">
                 <div className="relative flex h-full flex-col items-center justify-center gap-10">
                   <h1 className="text-primary-foreground max-w-[1080px] text-balance">
-                    Everything we learned from powering 20% of the Internet—yours by default
+                    Transform your Web3 learning into a powerful knowledge graph
                   </h1>
                   <div className="flex flex-col items-center">
                     <h5 className="text-primary-foreground opacity-90 max-w-[700px] leading-[1.2em] font-semibold">
-                      This project of fluent is your AI Cloud with compute, AI inference, and storage — letting you ship applications instead of managing infrastructure.
+                      Capture what you learn, visualize connections, and master concepts with AI-powered insights and adaptive quizzes.
                     </h5>
                   </div>
                   <a
                     href="#"
                     className="relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap font-medium transition-all ease-out duration-200 rounded-full bg-background text-accent-foreground active:scale-[0.98] px-6 py-3 mt-4 text-lg"
                   >
-                    Start building
+                    Start building your graph
                   </a>
                 </div>
               </div>

@@ -171,7 +171,7 @@ export const KnowledgeDetail: React.FC<KnowledgeDetailProps> = ({ node }) => {
               return (
                 <button
                   key={connectedNode.id}
-                  onClick={() => router.push(`/knowledge/${connectedNode.id}`)}
+                  onClick={() => router.push(`/knowledge/${connectedNode.id}`)}   
                   className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-background-primary p-4 transition-all hover:border-primary/30 hover:shadow-lg"
                 >
                   <div

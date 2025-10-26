@@ -13,24 +13,24 @@ const FinalCtaSection = () => {
 
           <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center">
             <h2 className="text-balance text-4xl font-bold leading-tight tracking-tighter text-primary-foreground sm:text-5xl md:text-6xl">
-              Build without boundaries
+              Build your knowledge empire
             </h2>
             <p className="mt-6 max-w-[800px] text-lg text-primary-foreground/90 md:text-xl">
-              Join thousands of developers who've eliminated infrastructure complexity and deployed
-              globally with This project of fluent. Start building for free — no credit card required.
+              Join learners who've transformed scattered learning into visual knowledge graphs with Fluent. 
+              Start for free — no credit card required.
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <a
-                href="https://dash.cloudflare.com/sign-up/workers-and-pages"
+                href="#"
                 className="inline-flex h-auto items-center justify-center rounded-full bg-background px-8 py-3 text-lg font-medium text-primary shadow-sm transition-all duration-200 ease-out hover:opacity-95 active:scale-[0.98]"
               >
-                Start building for free
+                Start learning for free
               </a>
               <a
-                href="https://developers.cloudflare.com/"
+                href="#"
                 className="inline-flex h-auto items-center justify-center rounded-full border border-primary-foreground bg-transparent px-8 py-3 text-lg font-medium text-primary-foreground transition-all duration-200 ease-out hover:bg-primary-foreground/10 active:scale-[0.98]"
               >
-                View docs
+                View documentation
               </a>
             </div>
           </div>

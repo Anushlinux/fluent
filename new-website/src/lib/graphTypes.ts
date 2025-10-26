@@ -53,3 +53,15 @@ export interface CapturedSentence {
   };
 }
 
+export interface DomainStats {
+  context: string;
+  sentenceCount: number;
+  nodeCount: number;
+  lastUpdated?: string;
+}
+
+export interface DomainGraphData extends GraphData {
+  context: string;
+  domainStats: DomainStats;
+}
+

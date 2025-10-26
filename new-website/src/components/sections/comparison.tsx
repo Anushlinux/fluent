@@ -37,10 +37,10 @@ const ComparisonSection = () => {
     >
       <div className="mb-12 flex flex-col items-center justify-center text-center md:mb-16">
         <h3 className="text-4xl font-semibold text-foreground-primary/50 md:text-5xl">
-          Why developers choose This project of fluent
+          Why learners choose Fluent
         </h3>
         <p className="text-body-lg mt-4 text-balance text-foreground-secondary">
-          Everything needed to build performant applications.
+          Everything needed to master Web3 knowledge efficiently.
         </p>
       </div>
 
@@ -48,21 +48,21 @@ const ComparisonSection = () => {
         {/* Left Panel: Fighting infra */}
         <div className="relative flex flex-col items-start gap-4 bg-background-secondary p-6 md:p-8">
           <h3 className="text-4xl font-semibold leading-tight text-foreground-primary">
-            Fighting infra with <br /> “cloud”
+            Learning the <br /> old way
           </h3>
 
           <div className="w-full rotate-[-1deg] rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-sm text-foreground-primary">
-            "Egress costs just doubled this week — caching not working at edge. Can we fix this by EOD?"
+            "I read this article weeks ago about Uniswap... where did I save it? And how did it relate to that other concept?"
           </div>
 
           <div className="relative z-0 w-full rounded-lg border border-destructive/20 bg-background-primary p-3">
             <h5 className="flex items-center gap-2 font-bold text-destructive">
               <AlertTriangle className="size-4" />
-              STATUS: UNRESOLVED
+              STATUS: KNOWLEDGE LOST
             </h5>
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0 text-sm leading-none text-foreground-primary/50">
-              <span>2931 Open incidents</span>
-              <span>2931 Open incidents</span>
+              <span>48 Open browser tabs</span>
+              <span>200+ bookmarks</span>
             </div>
           </div>
 
@@ -82,7 +82,7 @@ const ComparisonSection = () => {
           </div>
 
           <div className="w-full rotate-[0.5deg] rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-sm text-foreground-primary">
-            "Origin IP exposed, getting hit with direct DDoS traffic. Need to lock down ASAP."
+            "Wait, did I understand this correctly? Let me search through my notes... which document was it in?"
           </div>
 
           <div className="grid w-full grid-cols-2 gap-2">
@@ -106,16 +106,16 @@ const ComparisonSection = () => {
           </div>
 
           <div className="w-full rotate-[-0.75deg] rounded-lg border border-destructive/10 bg-destructive/5 p-3 text-sm">
-            <span className="font-medium text-foreground-secondary">Summer Intern</span>
+            <span className="font-medium text-foreground-secondary">Manual Notes</span>
             <br />
-            <span className="text-foreground-primary">"I fixed the errors by pushing the env file to production."</span>
+            <span className="text-foreground-primary">"I know I learned about this somewhere, but I can't find it now."</span>
           </div>
         </div>
 
-        {/* Right Panel: Shipping with This project of fluent */}
+        {/* Right Panel: Learning with Fluent */}
         <div className="relative flex flex-col bg-primary p-6 text-primary-foreground md:p-8">
           <h3 className="text-4xl font-semibold leading-tight text-primary-foreground">
-            Shipping with<br />This project of fluent
+            Learning with<br />Fluent
           </h3>
           <svg
             className="absolute left-[-1px] top-[68%] z-0 h-px w-1/2"

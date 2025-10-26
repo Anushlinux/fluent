@@ -85,23 +85,23 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
   };
 
   return (
-    <div className="bg-black border border-white/20 rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-white mb-4">Explore Your Graph</h2>
+    <div className="bg-card border border-border rounded-lg p-6 h-full flex flex-col">
+      <h2 className="text-lg font-semibold text-foreground-primary mb-4">Explore Your Graph</h2>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 mb-6">
         {/* Topic Filter */}
         <div>
-          <label className="block text-sm font-medium text-white/90 mb-2">
+          <label className="block text-sm font-medium text-foreground-secondary mb-2">
             Filter by Topic
           </label>
           <select
             value={selectedTopic}
             onChange={(e) => handleTopicChange(e.target.value)}
-            className="w-full px-4 py-2 bg-black border border-white/30 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white"
+            className="w-full px-4 py-2 bg-background-primary border border-border text-foreground-primary rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
           >
             {topics.map((topic) => (
-              <option key={topic} value={topic} className="bg-black">
+              <option key={topic} value={topic}>
                 {topic}
               </option>
             ))}
@@ -110,17 +110,17 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
         {/* Framework Filter */}
         <div>
-          <label className="block text-sm font-medium text-white/90 mb-2">
+          <label className="block text-sm font-medium text-foreground-secondary mb-2">
             Filter by Framework
           </label>
           <select
             value={selectedFramework}
             onChange={(e) => handleFrameworkChange(e.target.value)}
-            className="w-full px-4 py-2 bg-black border border-white/30 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-white disabled:opacity-50"
+            className="w-full px-4 py-2 bg-background-primary border border-border text-foreground-primary rounded-lg focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50"
             disabled={frameworks.length <= 1}
           >
             {frameworks.map((framework) => (
-              <option key={framework} value={framework} className="bg-black">
+              <option key={framework} value={framework}>
                 {framework}
               </option>
             ))}
@@ -130,16 +130,16 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
       {/* Pre-Built Queries */}
       <div>
-        <label className="block text-sm font-medium text-white/90 mb-2">
+        <label className="block text-sm font-medium text-foreground-secondary mb-2">
           Quick Views
         </label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handlePreBuiltQuery('journey')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'journey'
-                ? 'bg-white text-black'
-                : 'bg-black border border-white/30 text-white hover:bg-white/10'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background-primary border border-border text-foreground-primary hover:border-primary/30 hover:bg-primary/5'
             }`}
           >
             📚 My Journey
@@ -149,8 +149,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('quiz')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'quiz'
-                ? 'bg-white text-black'
-                : 'bg-black border border-white/30 text-white hover:bg-white/10'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background-primary border border-border text-foreground-primary hover:border-primary/30 hover:bg-primary/5'
             }`}
           >
             ✅ Quiz Trail
@@ -160,8 +160,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('confidence')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'confidence'
-                ? 'bg-white text-black'
-                : 'bg-black border border-white/30 text-white hover:bg-white/10'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background-primary border border-border text-foreground-primary hover:border-primary/30 hover:bg-primary/5'
             }`}
           >
             ⭐ High Confidence
@@ -171,8 +171,8 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
             onClick={() => handlePreBuiltQuery('recent')}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeQuery === 'recent'
-                ? 'bg-white text-black'
-                : 'bg-black border border-white/30 text-white hover:bg-white/10'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background-primary border border-border text-foreground-primary hover:border-primary/30 hover:bg-primary/5'
             }`}
           >
             🕐 Last 7 Days
@@ -182,10 +182,10 @@ export default function QueryControls({ data, onFilterChange }: QueryControlsPro
 
       {/* Reset Button */}
       {(selectedTopic !== 'All' || selectedFramework !== 'All' || activeQuery) && (
-        <div className="mt-4 pt-4 border-t border-white/10">
+        <div className="mt-4 pt-4 border-t border-border">
           <button
             onClick={resetFilters}
-            className="text-sm text-white hover:text-white/80 font-medium underline"
+            className="text-sm text-primary hover:text-primary/80 font-medium underline"
           >
             Reset All Filters
           </button>

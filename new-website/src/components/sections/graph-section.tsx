@@ -1,27 +1,27 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import GraphViewer from '../GraphViewer';
-import QueryControls from '../QueryControls';
-import StatsPanel from '../StatsPanel';
-import { GraphData } from '@/lib/graphTypes';
-import { getGraphData } from '@/lib/graphStorage';
+import { domainConfigs } from '@/lib/domain-config';
+import { DomainCard } from '@/components/domain-card';
+import { getAvailableDomains } from '@/lib/graphStorage';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 
+interface DomainCount {
+  context: string;
+  count: number;
+}
+
 const GraphSection = () => {
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [filteredData, setFilteredData] = useState<GraphData | null>(null);
+  const [domainCounts, setDomainCounts] = useState<DomainCount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
 
   // Load initial data
-  React.useEffect(() => {
+  useEffect(() => {
     checkAuthAndLoadData();
   }, []);
 
@@ -33,84 +33,35 @@ const GraphSection = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setIsAuthenticated(true);
-        await loadGraphData();
+        await loadDomains(user.id);
       } else {
         setIsAuthenticated(false);
-        setGraphData({
-          nodes: [],
-          edges: [],
-          stats: {
-            totalSentences: 0,
-            topicCount: 0,
-            avgLinkStrength: 0,
-          },
-        });
+        setDomainCounts([]);
       }
     } else {
-      // Supabase not configured, allow local access
+      // Supabase not configured, show all domains as empty
       setIsAuthenticated(true);
-      await loadGraphData();
+      setDomainCounts([]);
     }
     
     setLoading(false);
   };
 
-  const loadGraphData = async () => {
+  const loadDomains = async (userId: string) => {
     try {
-      setLoading(true);
-      
-      // Try to load existing graph data
-      const data = await getGraphData();
-      
-      if (data && data.nodes.length > 0) {
-        setGraphData(data);
-        setFilteredData(data);
-      } else {
-        // Create empty graph data for demo
-        const emptyData: GraphData = {
-          nodes: [],
-          edges: [],
-          stats: {
-            totalSentences: 0,
-            topicCount: 0,
-            avgLinkStrength: 0,
-          },
-        };
-        setGraphData(emptyData);
-        setFilteredData(emptyData);
-      }
+      const counts = await getAvailableDomains(userId);
+      setDomainCounts(counts);
     } catch (error) {
-      console.error('[Graph Section] Failed to load data:', error);
-      
-      // Fallback to empty data
-      const emptyData: GraphData = {
-        nodes: [],
-        edges: [],
-        stats: {
-          totalSentences: 0,
-          topicCount: 0,
-          avgLinkStrength: 0,
-        },
-      };
-      setGraphData(emptyData);
-      setFilteredData(emptyData);
-    } finally {
-      setLoading(false);
+      console.error('[Graph Section] Failed to load domains:', error);
+      setDomainCounts([]);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await loadGraphData();
-    } finally {
-      setRefreshing(false);
-    }
+  // Get count for a specific domain
+  const getDomainCount = (domainId: string): number => {
+    const count = domainCounts.find(c => c.context === domainId);
+    return count?.count || 0;
   };
-
-  const handleFilterChange = useCallback((newData: GraphData) => {
-    setFilteredData(newData);
-  }, []);
 
   if (loading) {
     return (
@@ -128,7 +79,7 @@ const GraphSection = () => {
           <div className="flex flex-col items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-foreground-primary mx-auto mb-4"></div>
-              <p className="text-foreground-primary/80">Loading knowledge graph...</p>
+              <p className="text-foreground-primary/80">Loading domains...</p>
             </div>
           </div>
         </div>
@@ -154,22 +105,22 @@ const GraphSection = () => {
           <div className="flex flex-col items-center justify-center mb-12">
             <div className="mx-auto flex max-w-[1080px] flex-col items-center text-center">
               <h3 className="text-balance text-foreground-primary">
-                Interactive Knowledge Graph
+                Explore Your Knowledge Domains
               </h3>
               <p className="mt-4 text-balance whitespace-pre-line text-body-lg text-foreground-primary/70">
-                Explore your learning journey through an interactive visualization of captured knowledge and connections.
+                Discover your learning journey across different Web3 domains.
               </p>
             </div>
           </div>
 
           {/* Login Prompt */}
           <div className="bg-background border border-border rounded-lg p-12 text-center max-w-md mx-auto">
-            <div className="text-5xl mb-6">📊</div>
+            <div className="text-5xl mb-6">📚</div>
             <h4 className="text-lg font-semibold text-foreground-primary mb-2">
-              Sign In to View Your Graph
+              Sign In to View Your Domains
             </h4>
             <p className="text-body text-foreground-primary/70 mb-6">
-              Sign in to access your personalized knowledge graph and start visualizing your learning journey.
+              Sign in to access your personalized knowledge domains and start visualizing your learning journey.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
@@ -208,71 +159,42 @@ const GraphSection = () => {
         <div className="flex flex-col items-center justify-center mb-12">
           <div className="mx-auto flex max-w-[1080px] flex-col items-center text-center">
             <h3 className="text-balance text-foreground-primary">
-              Interactive Knowledge Graph
+              Explore Your Knowledge Domains
             </h3>
             <p className="mt-4 text-balance whitespace-pre-line text-body-lg text-foreground-primary/70">
-              Explore your learning journey through an interactive visualization of captured knowledge and connections.
+              Navigate through different Web3 domains to explore your captured knowledge and understanding.
             </p>
           </div>
         </div>
 
-        {/* Graph Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* Main Graph Area */}
-          <div className="lg:col-span-4">
-            <div className="relative">
-              {/* Refresh Button Overlay */}
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="absolute top-4 right-4 z-10 inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-all ease-out duration-200 rounded-full bg-white/80 backdrop-blur-sm text-accent-foreground hover:bg-white active:scale-[0.98] px-4 py-2 text-sm border border-primary/20"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Refresh Graph'}
-              </button>
-
-              {/* Graph Viewer */}
-              {filteredData && (
-                <GraphViewer data={filteredData} />
-              )}
-            </div>
-          </div>
-
-          {/* Sidebar Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Query Controls */}
-            {graphData && graphData.nodes.length > 0 && (
-              <QueryControls 
-                data={graphData} 
-                onFilterChange={handleFilterChange} 
+        {/* Domain Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {domainConfigs.map((domain) => {
+            const count = getDomainCount(domain.id);
+            const isEmpty = count === 0;
+            
+            return (
+              <DomainCard
+                key={domain.id}
+                domain={domain}
+                sentenceCount={count}
+                isEmpty={isEmpty}
               />
-            )}
-
-            {/* Stats Panel */}
-            {filteredData && (
-              <StatsPanel data={filteredData} />
-            )}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Empty State */}
-        {graphData && graphData.nodes.length === 0 && (
+        {/* Empty State - if all domains are empty */}
+        {domainCounts.length === 0 && isAuthenticated && (
           <div className="mt-12 text-center">
             <div className="bg-background/50 border border-border rounded-lg p-8 max-w-md mx-auto">
-              <div className="text-4xl mb-4">📊</div>
+              <div className="text-4xl mb-4">🌐</div>
               <h4 className="text-lg font-semibold text-foreground-primary mb-2">
-                No Knowledge Data Yet
+                Start Your Learning Journey
               </h4>
               <p className="text-body text-foreground-primary/70 mb-4">
-                Start capturing sentences and building your knowledge graph to see it visualized here.
+                Capture your first sentence to begin building your knowledge graph across these domains.
               </p>
-              <button
-                onClick={handleRefresh}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-all ease-out duration-200 rounded-full bg-background text-accent-foreground hover:bg-background/90 active:scale-[0.98] px-4 py-2 text-sm"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Check for Data
-              </button>
             </div>
           </div>
         )}
@@ -282,4 +204,3 @@ const GraphSection = () => {
 };
 
 export default GraphSection;
-

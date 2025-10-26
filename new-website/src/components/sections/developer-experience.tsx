@@ -6,10 +6,10 @@ const DeveloperExperienceSection = (): JSX.Element => {
       <div className="container mx-auto px-4 xl:px-0">
         <div className="mx-auto max-w-3xl text-center mb-12 md:mb-16">
           <h3 className="text-4xl md:text-[48px] font-semibold leading-tight tracking-[-0.01em] text-foreground-primary">
-            Tailored to your working style
+            Built for how you learn
           </h3>
           <p className="mt-4 text-lg md:text-xl text-foreground-secondary">
-            Always simple, fast, and reliable.
+            Capture, connect, and master — automatically.
           </p>
         </div>
 
@@ -23,21 +23,19 @@ const DeveloperExperienceSection = (): JSX.Element => {
               <Github className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-foreground-primary fill-current" />
             </div>
             <h5 className="text-lg md:text-[22px] font-semibold text-white">
-              Fits into your existing workflows
+              Captures while you browse
             </h5>
             <p className="mt-2 text-base text-white/80">
-              Git, GitHub Actions, VS Code, and any framework. No proprietary
-              tools or vendor lock-in.
+              Just highlight sentences that matter. Fluent automatically detects terms and builds your knowledge graph in the background.
             </p>
           </div>
 
           <div className="bg-background-secondary border border-border-light p-8 md:p-10 rounded-xl">
             <h5 className="text-lg md:text-[22px] font-semibold text-foreground-primary">
-              Instant feedback loops
+              Instant graph updates
             </h5>
             <p className="mt-2 text-base text-foreground-secondary">
-              Our smart network positions your workloads optimally — close to
-              users, close to data.
+              See your knowledge connections in real-time. Every sentence captured instantly appears in your visual graph with automatic AI-powered links.
             </p>
           </div>
 
@@ -46,11 +44,10 @@ const DeveloperExperienceSection = (): JSX.Element => {
               <InfinityIcon className="w-8 h-8 text-primary" />
             </div>
             <h5 className="text-lg md:text-[22px] font-semibold text-foreground-primary">
-              Observable by default
+              AI-powered insights by default
             </h5>
             <p className="mt-2 text-base text-foreground-secondary">
-              Built-in logs, metrics, and tracing. Understand your application's
-              performance without setting up monitoring infrastructure.
+              Built-in gap detection, adaptive quizzes, and learning analytics. Get proactive nudges about knowledge gaps without setting up tracking.
             </p>
           </div>
 
@@ -92,12 +89,10 @@ const DeveloperExperienceSection = (): JSX.Element => {
               </pre>
             </div>
             <h5 className="text-lg md:text-[22px] font-semibold text-foreground-primary">
-              Compatible with your stack
+              Works with Web3 and AI
             </h5>
             <p className="mt-2 text-base text-foreground-secondary">
-              Use the languages and frameworks you know — JS, TS, Python, Rust,
-              React, and more. This project of fluent works with your existing databases,
-              APIs, and services.
+              Detects 20+ Web3 terms automatically, supports custom glossaries, and learns your language. Works with any topic you're learning.
             </p>
           </div>
         </div>

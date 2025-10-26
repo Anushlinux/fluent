@@ -664,3 +664,176 @@ export function subscribeToGraphUpdates(callback: (data: GraphData) => void) {
   };
 }
 
+/**
+ * Get available domains for a user with sentence counts
+ */
+export async function getAvailableDomains(userId: string): Promise<{ context: string; count: number }[]> {
+  try {
+    if (!isSupabaseConfigured()) {
+      // Fallback to all domains with 0 count
+      return [];
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('captured_sentences')
+      .select('context')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[Graph Storage] Failed to fetch domains:', error.message);
+      return [];
+    }
+
+    if (!data || data.length === 0) return [];
+
+    // Count sentences per context
+    const counts: Record<string, number> = {};
+    data.forEach((sentence: any) => {
+      const context = sentence.context || 'General';
+      counts[context] = (counts[context] || 0) + 1;
+    });
+
+    return Object.entries(counts).map(([context, count]) => ({ context, count }));
+  } catch (error) {
+    console.error('[Graph Storage] Error getting available domains:', error);
+    return [];
+  }
+}
+
+/**
+ * Get graph data filtered by a specific context
+ */
+export async function getGraphDataByContext(context: string, userId: string): Promise<GraphData | null> {
+  try {
+    if (!isSupabaseConfigured()) {
+      return await getFromLocalStorage();
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return null;
+
+    // Fetch nodes filtered by context
+    const { data: nodesData, error: nodesError } = await supabase
+      .from('graph_nodes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('context', context);
+
+    if (nodesError) {
+      console.error('[Graph Storage] Failed to fetch nodes:', nodesError.message);
+      throw new Error(`Failed to fetch nodes: ${nodesError.message}`);
+    }
+
+    if (!nodesData || nodesData.length === 0) {
+      return null;
+    }
+
+    const nodeIds = new Set(nodesData.map((n: any) => n.id));
+
+    // Fetch edges where both source and target are in the filtered nodes
+    const { data: edgesData, error: edgesError } = await supabase
+      .from('graph_edges')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (edgesError) {
+      console.error('[Graph Storage] Failed to fetch edges:', edgesError.message);
+      throw new Error(`Failed to fetch edges: ${edgesError.message}`);
+    }
+
+    // Filter edges to only include those within the context
+    const filteredEdges = (edgesData || []).filter((edge: any) => 
+      nodeIds.has(edge.source_id) && nodeIds.has(edge.target_id)
+    );
+
+    // Transform to GraphData format
+    const nodes: GraphNode[] = nodesData.map((node: any) => ({
+      id: node.id,
+      type: node.type as 'topic' | 'sentence',
+      label: node.label,
+      terms: node.terms || [],
+      context: node.context,
+      framework: node.framework,
+      timestamp: node.timestamp,
+      metadata: {
+        confidence: node.confidence || 0,
+        quizCompleted: node.quiz_completed || false,
+      },
+    }));
+
+    const edges: GraphEdge[] = filteredEdges.map((edge: any) => ({
+      id: edge.id,
+      source: edge.source_id,
+      target: edge.target_id,
+      weight: parseFloat(edge.weight),
+      type: edge.type as 'term-match' | 'context-match' | 'both',
+    }));
+
+    // Calculate stats
+    const sentenceCount = nodes.filter(n => n.type === 'sentence').length;
+    const topicCount = nodes.filter(n => n.type === 'topic').length;
+    const avgLinkStrength = edges.length > 0
+      ? edges.reduce((sum, e) => sum + e.weight, 0) / edges.length
+      : 0;
+
+    return {
+      nodes,
+      edges,
+      stats: {
+        totalSentences: sentenceCount,
+        topicCount,
+        avgLinkStrength: Math.round(avgLinkStrength * 100) / 100,
+      },
+    };
+  } catch (error) {
+    console.error('[Graph Storage] Error getting graph data by context:', error);
+    return null;
+  }
+}
+
+/**
+ * Get captured sentences for a specific context
+ */
+export async function getSentencesByContext(context: string, userId: string): Promise<CapturedSentence[]> {
+  try {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('captured_sentences')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('context', context)
+      .order('timestamp', { ascending: false });
+
+    if (error) {
+      console.error('[Graph Storage] Failed to fetch sentences:', error.message);
+      return [];
+    }
+
+    if (!data || data.length === 0) return [];
+
+    return data.map((sentence: any) => ({
+      id: sentence.id,
+      sentence: sentence.sentence,
+      terms: sentence.terms || [],
+      context: sentence.context,
+      framework: sentence.framework,
+      secondaryContext: sentence.secondary_context,
+      confidence: sentence.confidence || 0,
+      timestamp: sentence.timestamp,
+      asi_extract: sentence.asi_extract,
+    }));
+  } catch (error) {
+    console.error('[Graph Storage] Error getting sentences by context:', error);
+    return [];
+  }
+}
+
